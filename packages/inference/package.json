@@ -1,0 +1,20 @@
+{
+  "name": "@brickbybrick/inference",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@brickbybrick/core": "workspace:*",
+    "@anthropic-ai/sdk": "^0.54.0",
+    "openai": "^4.103.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
