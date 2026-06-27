@@ -44,6 +44,18 @@ These are detailed in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 Anthropic ✓ · Gemini ✓ · LiveKit ✓ · Prime Intellect ✓. Antigravity confirmed reachable with the **same Gemini key** (verified against docs). Gemma 4 availability on the Gemini key is the one thing the **setup spike must confirm** (fallback: smallest Gemini Flash variant as "weak").
 
+## Model ID reconciliation (2026-06-27)
+
+The architecture doc assumed `gemini-3.5-pro` / `gemma-4-9b-it`. Both return 404 on the live key. Queried `/v1beta/models?pageSize=1000` to find real IDs:
+
+| Role | Planned ID | Actual live ID |
+|---|---|---|
+| Strong (Gemini) | `gemini-3.5-pro` | `gemini-3.1-pro-preview` |
+| Weak (Gemma) | `gemma-4-9b-it` | `gemma-4-26b-a4b-it` |
+| Embeddings | `text-embedding-004` | `gemini-embedding-001` |
+
+These are now the defaults in `packages/inference/src/gemini.ts` and can be overridden via `STRONG_MODEL` / `WEAK_MODEL` / `GEMINI_EMBED_MODEL` env vars. Gemini spike (both models → 200) confirmed on 2026-06-27.
+
 ## Open risks
 
 - **Antigravity `steps` screenshot encoding** is only fully known after the setup spike → capture a real fixture, build engine TDD against it. **Hard gate.**

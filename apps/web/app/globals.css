@@ -120,12 +120,103 @@
   }
   body {
     @apply bg-background text-foreground;
-    background: #0a0a0a;
-    color: #ffffff;
   }
   html {
     font-family: var(--font-sans, sans-serif);
   }
+}
+
+@layer base {
+  :root {
+    --hero-gradient-1: oklch(0.18 0.02 260);
+    --hero-gradient-2: oklch(0.12 0.03 180);
+    --hero-gradient-3: oklch(0.15 0.01 200);
+  }
+}
+
+@keyframes bg-drift {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  33% {
+    transform: translate(-2%, 1%) scale(1.02);
+    opacity: 0.8;
+  }
+  66% {
+    transform: translate(1%, -1%) scale(0.98);
+    opacity: 0.7;
+  }
+}
+
+@keyframes grid-fade {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.18; }
+}
+
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.bg-drift {
+  animation: bg-drift 20s ease-in-out infinite;
+}
+
+.hero-reveal {
+  animation: hero-reveal 1s ease-out forwards;
+}
+
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+  animation: grid-fade 8s ease-in-out infinite;
+}
+
+.bg-grain {
+  position: relative;
+}
+.bg-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.glow-accent {
+  box-shadow: 0 0 60px -15px rgba(34, 197, 94, 0.15), 0 0 120px -30px rgba(34, 197, 94, 0.08);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px -5px rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px -5px rgba(34, 197, 94, 0.4);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
 @keyframes bbb-audio-rise {
