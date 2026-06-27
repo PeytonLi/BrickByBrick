@@ -1,0 +1,9 @@
+{
+  "//": "Standalone type-check config. Drops Next's generated `.next/types/**` from the program so `tsc --noEmit` never races with `next build` (which deletes/regenerates those files mid-build, causing intermittent TS6053). Route-handler types are still validated by `next build` itself.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/tsc-typecheck.tsbuildinfo"
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", ".next"]
+}
