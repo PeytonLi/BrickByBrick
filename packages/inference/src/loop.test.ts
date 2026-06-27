@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   GenerationConfigSchema,
   type AgentEvent,
@@ -7,6 +7,7 @@ import {
   type Defect,
   type GenerationConfig,
   type RunVisualLoop,
+  type TrainingPair,
   type VisualTask,
 } from '@brickbybrick/core'
 import { runVisualLoop, makeDiff, type VisualLoopDeps, type AuditResult } from './loop'
@@ -243,6 +244,62 @@ describe('recipe mutation cadence', () => {
       (e) => e.type === 'recipe_mutated' && e.patch.focus_mechanism === 'responsive-card-grid',
     )
     expect(focusMutation).toBeDefined()
+  })
+})
+
+describe('Prime training handoff', () => {
+  it('calls training once after the requested committed batch is complete', async () => {
+    const { events, emit } = collect()
+    const train = vi.fn(async (_pairs: TrainingPair[], emitEvent: (event: AgentEvent) => void) => {
+      emitEvent({ type: 'training_event', status: 'complete', instance: 'pod-1' })
+    })
+    const deps = makeDeps({ train })
+
+    await runVisualLoop(cfg({ max_pairs: 2 }), emit, deps)
+
+    expect(train).toHaveBeenCalledTimes(1)
+    expect(train.mock.calls[0][0]).toHaveLength(2)
+    expect(events.filter((event) => event.type === 'pair_committed')).toHaveLength(2)
+    expect(events.some((event) => event.type === 'training_event' && event.status === 'complete')).toBe(true)
+  })
+
+  it('does not train when no pairs are committed', async () => {
+    const { events, emit } = collect()
+    const train = vi.fn(async () => {})
+    const deps = makeDeps({
+      audit: async (_t, _code, emit): Promise<AuditResult> => {
+        emit({ type: 'audit_step', step: auditStep })
+        return { passed: true, passedCriteria: ['a', 'b'], steps: [auditStep] }
+      },
+      train,
+      maxIterations: 2,
+    })
+
+    await runVisualLoop(cfg({ max_pairs: 1 }), emit, deps)
+
+    expect(train).not.toHaveBeenCalled()
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'narration' &&
+          event.text === 'No pairs were committed; skipping Prime LoRA training.',
+      ),
+    ).toBe(true)
+  })
+
+  it('forwards failed training events without dropping committed pair events', async () => {
+    const { events, emit } = collect()
+    const deps = makeDeps({
+      train: async (_pairs, emitEvent) => {
+        emitEvent({ type: 'training_event', status: 'failed', instance: 'pod-1' })
+        emitEvent({ type: 'narration', text: 'Prime training failed: quota unavailable' })
+      },
+    })
+
+    await runVisualLoop(cfg({ max_pairs: 1 }), emit, deps)
+
+    expect(events.some((event) => event.type === 'pair_committed')).toBe(true)
+    expect(events.some((event) => event.type === 'training_event' && event.status === 'failed')).toBe(true)
   })
 })
 

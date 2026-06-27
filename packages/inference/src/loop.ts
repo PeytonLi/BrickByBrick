@@ -23,6 +23,7 @@ import {
   CHALLENGER_SYSTEM,
   RECIPE_SYNTHESIZER_SYSTEM,
 } from './prompts'
+import { runPrimeTraining } from './training'
 
 /** Result of one in-sandbox visual audit (see ARCHITECTURE §5 step 3/5). */
 export interface AuditResult {
@@ -52,6 +53,7 @@ export interface VisualLoopDeps {
   ) => Promise<AuditResult>
   embed: (text: string) => Promise<number[]>
   synthesizeRecipe: (recent: TrainingPair[]) => Promise<Partial<GenerationConfig>>
+  train?: (pairs: TrainingPair[], emit: (e: AgentEvent) => void) => Promise<void>
   newId: () => string
   /** Safety cap so a run of all-rejections still terminates. */
   maxIterations?: number
@@ -208,6 +210,24 @@ export const runVisualLoop = async (
     }
   }
 
+  if (committed.length >= current.max_pairs) {
+    emit({
+      type: 'narration',
+      text: `Committed ${committed.length} pair(s); launching Prime LoRA training.`,
+    })
+    await deps.train?.(committed, emit)
+  } else if (committed.length === 0) {
+    emit({
+      type: 'narration',
+      text: 'No pairs were committed; skipping Prime LoRA training.',
+    })
+  } else {
+    emit({
+      type: 'narration',
+      text: `Committed ${committed.length}/${current.max_pairs} pair(s); skipping Prime LoRA training until the batch is complete.`,
+    })
+  }
+
   emit({
     type: 'narration',
     text: `Loop complete — committed ${committed.length} pair(s) in ${iterations} iteration(s).`,
@@ -314,5 +334,6 @@ export function defaultDeps(): VisualLoopDeps {
       return safeJson<Partial<GenerationConfig>>(raw) ?? {}
     },
     newId: () => randomUUID(),
+    train: (pairs, emit) => runPrimeTraining(pairs, emit),
   }
 }

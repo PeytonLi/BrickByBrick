@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit",
-    "test": "vitest run"
+    "type-check": "tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.50.0",
     "@tailwindcss/postcss": "^4.3.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
