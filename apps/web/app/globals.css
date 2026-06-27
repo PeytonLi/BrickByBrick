@@ -127,3 +127,56 @@
     font-family: var(--font-sans, sans-serif);
   }
 }
+
+@keyframes bbb-audio-rise {
+  0%,
+  100% {
+    transform: scaleY(0.38);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bbb-commit-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.8);
+    border-color: rgba(34, 197, 94, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes bbb-reject-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8);
+    border-color: rgba(245, 158, 11, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+  }
+}
+
+.audio-bar-active {
+  animation: bbb-audio-rise 900ms ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+.pulse-committed {
+  animation: bbb-commit-flash 900ms ease-out 1;
+}
+
+.pulse-rejected {
+  animation: bbb-reject-flash 900ms ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-bar-active,
+  .pulse-committed,
+  .pulse-rejected {
+    animation: none;
+  }
+}
