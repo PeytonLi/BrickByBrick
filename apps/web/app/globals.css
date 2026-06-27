@@ -219,18 +219,6 @@
   animation: pulse-glow 3s ease-in-out infinite;
 }
 
-@keyframes bbb-audio-rise {
-  0%,
-  100% {
-    transform: scaleY(0.38);
-    opacity: 0.5;
-  }
-  50% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
 @keyframes bbb-commit-flash {
   0% {
     box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.8);
@@ -251,11 +239,6 @@
   }
 }
 
-.audio-bar-active {
-  animation: bbb-audio-rise 900ms ease-in-out infinite;
-  transform-origin: bottom;
-}
-
 .pulse-committed {
   animation: bbb-commit-flash 900ms ease-out 1;
 }
@@ -265,7 +248,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .audio-bar-active,
   .pulse-committed,
   .pulse-rejected {
     animation: none;

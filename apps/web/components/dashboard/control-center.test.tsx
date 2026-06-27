@@ -32,6 +32,8 @@ vi.mock('@livekit/components-react', () => ({
     <div data-testid="livekit-room">{children}</div>
   ),
   RoomAudioRenderer: () => <div data-testid="room-audio-renderer" />,
+  useMultibandTrackVolume: () => [],
+  useTracks: () => [],
 }))
 
 vi.mock('recharts', () => ({

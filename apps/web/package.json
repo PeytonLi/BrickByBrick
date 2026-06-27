@@ -18,6 +18,7 @@
     "@brickbybrick/trainer": "workspace:*",
     "@google/genai": "^1.0.0",
     "@livekit/components-react": "^2.6.0",
+    "@livekit/rtc-node": "^0.13.29",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "livekit-client": "^2.7.0",

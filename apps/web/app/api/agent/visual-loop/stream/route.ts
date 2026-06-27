@@ -9,6 +9,12 @@ import {
   type VisualLoopRequest,
 } from '@brickbybrick/core'
 
+import {
+  createGeminiLiveNarrationBridge,
+  createNoopNarrationBridge,
+  type NarrationAudioBridge,
+} from '@/lib/server/narration-bridge'
+
 import { demoRunVisualLoop } from '../demo-runner'
 
 export const runtime = 'nodejs'
@@ -50,6 +56,7 @@ export async function POST(request: Request) {
 
   const runVisualLoop = await resolveRunVisualLoop()
   const encoder = new TextEncoder()
+  let bridge: NarrationAudioBridge | null = null
   let aborted = false
 
   request.signal.addEventListener('abort', () => {
@@ -58,9 +65,24 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const emit = (event: AgentEvent) => {
-        if (!aborted) {
+      let controllerOpen = true
+      const emitSSE = (event: AgentEvent) => {
+        if (!aborted && controllerOpen) {
           controller.enqueue(encoder.encode(formatSSE(event)))
+        }
+      }
+
+      bridge =
+        process.env.BBB_DEMO_MODE === '1'
+          ? createNoopNarrationBridge()
+          : createGeminiLiveNarrationBridge({
+              onError: (text) => emitSSE({ type: 'narration', text }),
+            })
+
+      const emit = (event: AgentEvent) => {
+        emitSSE(event)
+        if (event.type === 'narration') {
+          bridge?.enqueue(event.text)
         }
       }
 
@@ -75,6 +97,8 @@ export async function POST(request: Request) {
               : 'Visual loop failed.',
         })
       } finally {
+        await bridge?.close()
+        controllerOpen = false
         if (!aborted) {
           controller.close()
         }
@@ -82,6 +106,7 @@ export async function POST(request: Request) {
     },
     cancel() {
       aborted = true
+      void bridge?.close()
     },
   })
 

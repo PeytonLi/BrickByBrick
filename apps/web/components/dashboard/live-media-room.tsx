@@ -4,7 +4,10 @@ import Image from 'next/image'
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  useMultibandTrackVolume,
+  useTracks,
 } from '@livekit/components-react'
+import { Track } from 'livekit-client'
 import { CircleDot, Mic2, Radio, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -63,10 +66,10 @@ export function LiveMediaRoom({
                 className="contents"
               >
                 <RoomAudioRenderer />
-                <AgentAudioVisualizer active={snapshot.status !== 'idle'} />
+                <LiveKitNarrationVisualizer />
               </LiveKitRoom>
             ) : (
-              <AgentAudioVisualizer active={snapshot.status !== 'idle'} />
+              <AgentAudioVisualizer />
             )}
           </div>
         </div>
@@ -110,28 +113,53 @@ export function LiveMediaRoom({
   )
 }
 
-export function AgentAudioVisualizer({ active }: { active: boolean }) {
+function LiveKitNarrationVisualizer() {
+  const tracks = useTracks([Track.Source.Microphone], { onlySubscribed: true })
+  const narratorTrack =
+    tracks.find((track) => track.participant.identity.startsWith('narrator-')) ?? tracks[0]
+  const levels = useMultibandTrackVolume(narratorTrack, {
+    bands: 24,
+    updateInterval: 80,
+  })
+
+  return <AgentAudioVisualizer connected={Boolean(narratorTrack)} levels={levels} />
+}
+
+export function AgentAudioVisualizer({
+  connected = false,
+  levels = [],
+}: {
+  connected?: boolean
+  levels?: number[]
+}) {
   return (
     <div
       className={cn(
         'grid h-24 grid-cols-[repeat(24,minmax(0,1fr))] items-end gap-1 rounded-md border border-white/10 bg-zinc-950 p-3',
-        active && 'border-emerald-300/40',
+        connected && 'border-emerald-300/40',
       )}
       aria-label="Agent audio visualizer"
     >
-      {Array.from({ length: 24 }, (_, index) => (
-        <span
-          key={index}
-          className={cn(
-            'rounded-t bg-zinc-700 transition-all',
-            active && 'audio-bar-active bg-emerald-300',
-          )}
-          style={{
-            height: `${18 + ((index * 17) % 52)}%`,
-            animationDelay: `${index * 45}ms`,
-          }}
-        />
-      ))}
+      {Array.from({ length: 24 }, (_, index) => {
+        const level = levels[index] ?? 0
+        const isAudible = connected && level > 0.015
+
+        return (
+          <span
+            key={index}
+            className={cn(
+              'rounded-t bg-zinc-700 transition-[height,background-color,opacity]',
+              isAudible && 'bg-emerald-300',
+            )}
+            style={{
+              height: connected
+                ? `${Math.max(10, Math.min(100, 10 + level * 90))}%`
+                : `${18 + ((index * 17) % 52)}%`,
+              opacity: connected ? Math.max(0.35, Math.min(1, 0.35 + level * 1.8)) : 0.55,
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
