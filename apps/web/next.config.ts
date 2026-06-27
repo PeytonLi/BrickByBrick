@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     '@brickbybrick/inference',
     '@brickbybrick/trainer',
   ],
+  serverExternalPackages: ['@livekit/rtc-node'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
 }
 
