@@ -23,6 +23,11 @@ async function readRequest(request: Request): Promise<VisualLoopRequest> {
 }
 
 async function resolveRunVisualLoop(): Promise<RunVisualLoop> {
+  // Deterministic, fast stub for e2e/CI — the real loop makes ~14-min live calls.
+  if (process.env.BBB_DEMO_MODE === '1') {
+    return demoRunVisualLoop
+  }
+
   const inferenceModule = (await import('@brickbybrick/inference')) as unknown as {
     runVisualLoop?: RunVisualLoop
   }

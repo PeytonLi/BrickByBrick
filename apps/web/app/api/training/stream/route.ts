@@ -29,6 +29,11 @@ async function readRequest(request: Request): Promise<TrainingRequest | null> {
 }
 
 async function resolveStreamMetrics(): Promise<StreamMetrics> {
+  // Deterministic, fast stub for e2e/CI — real metrics tail a live Prime job.
+  if (process.env.BBB_DEMO_MODE === '1') {
+    return demoStreamMetrics
+  }
+
   const trainerModule = (await import('@brickbybrick/trainer')) as unknown as {
     streamMetrics?: StreamMetrics
   }
