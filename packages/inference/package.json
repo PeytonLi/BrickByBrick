@@ -7,14 +7,15 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@brickbybrick/core": "workspace:*",
-    "@anthropic-ai/sdk": "^0.54.0",
-    "openai": "^4.103.0"
+    "@google/genai": "^1.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }
