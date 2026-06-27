@@ -1,3 +1,5 @@
+import { ControlCenter } from '@/components/dashboard/control-center'
+
 export default function SynthesisPage() {
-  return <main><h1>Synthesis</h1></main>
+  return <ControlCenter />
 }
