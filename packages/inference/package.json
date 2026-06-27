@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@brickbybrick/core": "workspace:*",
+    "@brickbybrick/trainer": "workspace:*",
     "@google/genai": "^1.0.0"
   },
   "devDependencies": {

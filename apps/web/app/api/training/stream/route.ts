@@ -4,6 +4,7 @@ import {
   formatSSE,
   SSE_HEADERS,
   type AgentEvent,
+  type LossPoint,
   type TrainingRequest,
 } from '@brickbybrick/core'
 
@@ -15,6 +16,11 @@ export const dynamic = 'force-dynamic'
 type StreamMetrics = (
   runId: string,
   emit: (event: AgentEvent) => void,
+) => Promise<void>
+
+type PrimeStreamMetrics = (
+  runId: string,
+  onPoint: (point: LossPoint) => void,
 ) => Promise<void>
 
 async function readRequest(request: Request): Promise<TrainingRequest | null> {
@@ -35,12 +41,20 @@ async function resolveStreamMetrics(): Promise<StreamMetrics> {
   }
 
   const trainerModule = (await import('@brickbybrick/trainer')) as unknown as {
-    streamMetrics?: StreamMetrics
+    streamMetrics?: PrimeStreamMetrics
   }
 
-  return typeof trainerModule.streamMetrics === 'function'
-    ? trainerModule.streamMetrics
-    : demoStreamMetrics
+  if (typeof trainerModule.streamMetrics !== 'function') {
+    return demoStreamMetrics
+  }
+
+  return async (runId, emit) => {
+    emit({ type: 'training_event', status: 'training', instance: runId })
+    await trainerModule.streamMetrics!(runId, (loss) => {
+      emit({ type: 'training_event', status: 'training', instance: runId, loss })
+    })
+    emit({ type: 'training_event', status: 'complete', instance: runId })
+  }
 }
 
 export async function POST(request: Request) {
