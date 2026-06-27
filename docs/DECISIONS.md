@@ -1,0 +1,59 @@
+# Decisions & Handoff Context
+
+Read this first if you're an agent picking up cold. It records **what was decided, why, the current repo state, and where we left off.**
+
+## Where we are
+
+- **Phase:** **Setup complete (code-side), 2026-06-27.** `@brickbybrick/core` contracts are frozen; deps reconciled; vitest wired; `pnpm turbo run build type-check test` is **green** (core has 8 passing tests, other packages pass-with-no-tests). Spike scripts scaffolded under `scripts/spike/`.
+- **Packages now:** `core`, `inference`, `trainer` (the `agentbox` package was **removed** — Antigravity folds into `inference`). `apps/web` pages are still one-line placeholders.
+- **Next step:** put real keys in `.env.local`, run the **go/no-go spike** (`scripts/spike/`), confirm all five checks + commit the two fixtures — **then** create the three worktrees and spawn A/B/C.
+
+## The pivot (most important context)
+
+The pasted PRD and the scaffolded repo described **two different systems**. We chose to **fully pivot to the PRD** (visual, Gemini/Antigravity/LiveKit/Prime) and treat the repo's text-based Nebius+Claude foundation as reference-only.
+
+- The unmerged branch `worktree-agent-ad6131657bf7e7c53` (commit `2473c0f`) has a complete **text-based** loop (Nebius Qwen/Nemotron + Claude). **We reuse its schema/loop *structure*, not its code** — model clients are replaced by Gemini. The other 4 `worktree-agent-*` branches are empty (== main).
+- The 8 deleted `.claude/context/*.md` docs describe the *old* text-based plan; superseded by `docs/`.
+
+## PRD corrections (the PRD's code would fail as written)
+
+| PRD said | Reality (use this) |
+|---|---|
+| `POST api.google.dev/v1/agents/antigravity-preview-05-2026/sessions` | `POST https://generativelanguage.googleapis.com/v1beta/interactions`, header `x-goog-api-key` |
+| `from prime_intellect import ComputeCluster, TrainingJob` | `prime` **CLI** via `child_process` (`prime pods create`, `prime train …`) |
+| Antigravity has a generic `ENVIRONMENT_BROWSER` tool you wire | The managed agent **browses in-sandbox**; we just stream its `steps` |
+| LiveKit streams the cloud browser video | LiveKit = **audio only**; browser shown via **screenshot stream** |
+| Strong=Gemini Pro, Weak=Gemma, plus Nebius/Anthropic | All brains on **one `GEMINI_API_KEY`**; Nebius/Anthropic dropped |
+
+These are detailed in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Locked decisions (with rationale)
+
+1. **Full PRD pivot.** User wants maximum wow; the APIs turned out to be real in this 2026 timeline.
+2. **Everything live, no mock, no fallback net.** User's explicit call. ⇒ the setup go/no-go spike is the main de-risking lever; one flawless run is the goal.
+3. **Antigravity drives the whole visual audit in-sandbox.** Simplest, single API surface, matches PRD; we don't run Playwright.
+4. **LiveKit audio-only + SSE screenshot stream.** A headless sandbox browser can't publish WebRTC on its own; this keeps the LiveKit demo element without video-egress infra.
+5. **Generic web-app task bank** (forms/modals/responsive layouts). No doc-ingestion/RAG — more controllable, reproducible failures.
+6. **Verify both sides** of the gap: weak must FAIL, strong fix must PASS, before commit. Legit 𝒰 ≥ τ. ~2× audit calls accepted.
+7. **Pre-warm a real Prime Intellect job;** stream its real loss on stage. Avoids dead air while staying 100% real.
+8. **~3–8 pairs generated live** (proves the mechanism) + **real pre-built JSONL** for training scale (the "2,000").
+9. **Crew:** setup → 3 fat worktree agents (TDD) → integration. User chose "fewer, fatter agents" to minimize merge thrash.
+10. **Removed the `agentbox` package** (2026-06-27). It was a vestige of the old GMI-sandbox design; the Antigravity wrapper is just Gemini-key REST calls, so it lives in `packages/inference`. Also dropped unused deps: `@anthropic-ai/sdk`, `openai` (Nebius), `react-dropzone` (no doc ingestion), `shadcn` runtime dep (it's a CLI). Removed a broken `@import "shadcn/tailwind.css"` the scaffold shipped (file never existed) — that had silently broken `next build`.
+
+## Confirmed credentials (per user)
+
+Anthropic ✓ · Gemini ✓ · LiveKit ✓ · Prime Intellect ✓. Antigravity confirmed reachable with the **same Gemini key** (verified against docs). Gemma 4 availability on the Gemini key is the one thing the **setup spike must confirm** (fallback: smallest Gemini Flash variant as "weak").
+
+## Open risks
+
+- **Antigravity `steps` screenshot encoding** is only fully known after the setup spike → capture a real fixture, build engine TDD against it. **Hard gate.**
+- **Audit latency** (~30–60s/pair, multi-turn) → keep live target at 3–8 pairs.
+- **Prime provisioning lag** → mitigated by pre-warm.
+- **No safety net** by user choice — don't spawn feature agents until the spike is green.
+
+## How to resume
+
+1. Read this file + [`ARCHITECTURE.md`](ARCHITECTURE.md) + [`BUILD_PLAN.md`](BUILD_PLAN.md).
+2. Execute [`features/00-SETUP.md`](features/00-SETUP.md). Confirm the spike + green build.
+3. Create worktrees; dispatch [`features/A-ENGINE.md`](features/A-ENGINE.md), [`features/B-INFRA.md`](features/B-INFRA.md), [`features/C-UI.md`](features/C-UI.md) in parallel under TDD.
+4. Run [`features/D-INTEGRATION.md`](features/D-INTEGRATION.md).
