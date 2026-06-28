@@ -61,6 +61,7 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   let bridge: NarrationAudioBridge | null = null;
   let aborted = false;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
 
   request.signal.addEventListener("abort", () => {
     aborted = true;
@@ -68,6 +69,29 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      // Heartbeat every 15s — keeps the SSE connection alive through long
+      // Antigravity sandbox setups (which can be silent for minutes). Without
+      // this, browsers/proxies close idle connections after ~60-300s.
+      heartbeat = setInterval(() => {
+        if (!aborted) {
+          try {
+            controller.enqueue(encoder.encode(": heartbeat\n\n"));
+          } catch {}
+        }
+      }, 15_000);
+
+      const teardown = () => {
+        if (heartbeat !== undefined) {
+          clearInterval(heartbeat);
+          heartbeat = undefined;
+        }
+        if (!aborted) {
+          aborted = true;
+          try {
+            controller.close();
+          } catch {}
+        }
+      };
       let controllerOpen = true;
       const emitSSE = (event: AgentEvent) => {
         if (!aborted && controllerOpen) {
@@ -105,14 +129,47 @@ export async function POST(request: Request) {
         runId = null;
       }
 
-      bridge =
-        process.env.BBB_DEMO_MODE === "1"
-          ? createNoopNarrationBridge()
-          : createGeminiLiveNarrationBridge({
-              onError: (text) => emitSSE({ type: "narration", text }),
-            });
+      // On platforms without the @livekit/rtc-node native binary (Windows),
+      // the server-side publisher cannot connect. Use noop bridge so the
+      // visual loop still works — narration is cosmetic.
+      const platformCanPublishAudio = process.platform !== "win32";
+
+      try {
+        bridge =
+          process.env.BBB_DEMO_MODE === "1" || !platformCanPublishAudio
+            ? createNoopNarrationBridge()
+            : createGeminiLiveNarrationBridge({
+                onError: (text) => emitSSE({ type: "narration", text }),
+              });
+      } catch (error) {
+        bridge = createNoopNarrationBridge();
+      }
 
       const emit = (event: AgentEvent) => {
+        // Log key events to server console so progress is visible even if
+        // the browser's SSE connection drops during long sandbox runs.
+        if (event.type === "challenge_generated") {
+          console.log("[loop] Challenge:", event.task.target_mechanism);
+        } else if (event.type === "defect_found") {
+          console.log(
+            "[loop] Defect:",
+            event.defect.category,
+            event.defect.severity,
+          );
+        } else if (event.type === "pair_committed") {
+          console.log(
+            "[loop] Pair committed:",
+            event.pair.id,
+            "utility:",
+            event.u_score?.toFixed(2),
+          );
+        } else if (event.type === "pair_rejected") {
+          console.log("[loop] Pair rejected:", event.reason);
+        } else if (event.type === "audit_pass") {
+          console.log("[loop] Audit passed — strong fix verified");
+        } else if (event.type === "narration" && event.text) {
+          console.log("[loop]", event.text);
+        }
         emitSSE(event);
         if (event.type === "narration") {
           bridge?.enqueue(event.text);
@@ -170,13 +227,12 @@ export async function POST(request: Request) {
         }
         await bridge?.close();
         controllerOpen = false;
-        if (!aborted) {
-          controller.close();
-        }
+        teardown();
       }
     },
     cancel() {
       aborted = true;
+      if (heartbeat !== undefined) clearInterval(heartbeat);
       void bridge?.close();
     },
   });

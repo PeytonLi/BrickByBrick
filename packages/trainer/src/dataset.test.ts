@@ -95,11 +95,11 @@ describe("seed dataset validation", () => {
     expect(raw.trim().length).toBeGreaterThan(0);
   });
 
-  it("has between 50 and 100 rows", () => {
+  it("has between 200 and 2000 rows", () => {
     const raw = fs.readFileSync(fixturePath, "utf-8");
     const lines = raw.trim().split("\n");
-    expect(lines.length).toBeGreaterThanOrEqual(50);
-    expect(lines.length).toBeLessThanOrEqual(100);
+    expect(lines.length).toBeGreaterThanOrEqual(200);
+    expect(lines.length).toBeLessThanOrEqual(2000);
   });
 
   it("every row validates against TrainingPairSchema", () => {
@@ -115,7 +115,7 @@ describe("seed dataset validation", () => {
         throw new Error(`Row ${i + 1} (id: ${obj.id || "unknown"}): ${issues}`);
       }
     }
-    expect(lines.length).toBeGreaterThanOrEqual(50);
+    expect(lines.length).toBeGreaterThanOrEqual(200);
   });
 
   it("all u_scores are in [0,1] range", () => {

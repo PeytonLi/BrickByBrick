@@ -61,6 +61,9 @@ export interface GemmaLoraTrainingOpts {
   runName?: string;
   hfToken?: string;
   modelId?: string;
+  /** Override the number of training epochs (default: 3). */
+  epochs?: number;
+  /** Legacy: force an exact max step count, bypassing the epochs × dataset calculation. */
   maxSteps?: number;
   gpuId?: string;
   gpuType?: string;
@@ -68,6 +71,8 @@ export interface GemmaLoraTrainingOpts {
   remoteRoot?: string;
   /** Hugging Face Hub repo to push the trained adapter to, e.g. "user/gemma-bbb-lora". */
   hubRepo?: string;
+  /** When true, launch training with nohup and return immediately (for long runs). */
+  detached?: boolean;
 }
 
 export interface GemmaLoraTrainingCallbacks {
@@ -473,8 +478,12 @@ export async function runGemmaLoraTraining(
   const runName = opts.runName ?? `bbb-gemma-${Date.now()}`;
   const modelId =
     opts.modelId ?? process.env.BBB_GEMMA_MODEL ?? DEFAULT_GEMMA_MODEL;
+  const epochs = opts.epochs ?? Number(process.env.BBB_TRAINING_EPOCHS ?? 3);
   const maxSteps =
-    opts.maxSteps ?? Number(process.env.BBB_TRAINING_MAX_STEPS ?? 20);
+    opts.maxSteps ??
+    (process.env.BBB_TRAINING_MAX_STEPS
+      ? Number(process.env.BBB_TRAINING_MAX_STEPS)
+      : undefined);
   const hubRepo = resolveHubRepo(opts, {
     ...loadDotEnvLocal(),
     ...process.env,
@@ -504,10 +513,30 @@ export async function runGemmaLoraTraining(
     copyToPod(target, scriptPath, `${remoteDir}/train_gemma_lora.py`);
 
     callbacks.onStatus?.("training", podId);
+    if (opts.detached) {
+      await launchDetachedTraining(target, {
+        remoteDir,
+        hfToken,
+        modelId,
+        epochs,
+        maxSteps,
+        hubRepo,
+        onLog: callbacks.onLog,
+      });
+      callbacks.onStatus?.("detached", podId);
+      return {
+        podId,
+        adapterPath: `${remoteDir}/adapter`,
+        runName,
+        hubRepo,
+      };
+    }
+
     await streamRemoteTraining(target, {
       remoteDir,
       hfToken,
       modelId,
+      epochs,
       maxSteps,
       hubRepo,
       onMetric: callbacks.onMetric,
@@ -535,13 +564,84 @@ export async function runGemmaLoraTraining(
   }
 }
 
+async function launchDetachedTraining(
+  target: SshTarget,
+  opts: {
+    remoteDir: string;
+    hfToken: string;
+    modelId: string;
+    epochs: number;
+    maxSteps?: number;
+    hubRepo?: string;
+    onLog?: (line: string) => void;
+  },
+): Promise<void> {
+  const command = buildDetachedTrainingCommand(opts);
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("ssh", sshArgs(target, command), {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
+    const rl = createInterface({ input: child.stdout! });
+
+    rl.on("line", (line) => {
+      const trimmed = line.trim();
+      if (trimmed) opts.onLog?.(trimmed);
+    });
+
+    child.stderr?.on("data", (chunk) => opts.onLog?.(chunk.toString().trim()));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else
+        reject(new Error(`Detached training launch exited with code ${code}`));
+    });
+    child.on("error", reject);
+  });
+}
+
+function buildDetachedTrainingCommand(opts: {
+  remoteDir: string;
+  hfToken: string;
+  modelId: string;
+  epochs: number;
+  maxSteps?: number;
+  hubRepo?: string;
+}): string {
+  const pushFlag = opts.hubRepo
+    ? ` --push-to-hub ${shellSingleQuote(opts.hubRepo)}`
+    : "";
+  const stepsFlag =
+    opts.maxSteps != null
+      ? ` --max-steps ${opts.maxSteps}`
+      : ` --epochs ${opts.epochs}`;
+  return [
+    "set -euo pipefail",
+    "export PIP_ROOT_USER_ACTION=ignore",
+    `cd ${shellSingleQuote(opts.remoteDir)}`,
+    "rm -rf .miniconda .py",
+    `if [ ! -x .py/bin/python ]; then`,
+    `  wget -q -O /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh || curl -sSL -o /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh`,
+    `  bash /tmp/miniforge.sh -b -p ${shellSingleQuote(opts.remoteDir)}/.miniconda`,
+    `  ${shellSingleQuote(opts.remoteDir)}/.miniconda/bin/conda create -y -p ${shellSingleQuote(opts.remoteDir)}/.py python=3.10 pip`,
+    `fi`,
+    `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade pip`,
+    `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade torch --index-url https://download.pytorch.org/whl/cu124`,
+    `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade "transformers>=4.49.0" "datasets>=3.0.0" "accelerate>=1.2.0" "peft>=0.14.0" "trl>=0.25.0" "bitsandbytes>=0.45.0" "pillow>=11.0.0" "huggingface_hub>=0.27.0"`,
+    `HF_TOKEN=${shellSingleQuote(opts.hfToken)} nohup ${shellSingleQuote(opts.remoteDir)}/.py/bin/python train_gemma_lora.py --dataset dataset.jsonl --output adapter --model ${shellSingleQuote(opts.modelId)}${stepsFlag}${pushFlag} > ${shellSingleQuote(opts.remoteDir)}/training.log 2>&1 &`,
+    `echo "PID=$!" > ${shellSingleQuote(opts.remoteDir)}/train.pid`,
+    `echo "DETACHED_LAUNCH_OK"`,
+  ].join("\n");
+}
+
 async function streamRemoteTraining(
   target: SshTarget,
   opts: {
     remoteDir: string;
     hfToken: string;
     modelId: string;
-    maxSteps: number;
+    epochs: number;
+    maxSteps?: number;
     hubRepo?: string;
     onMetric?: (point: LossPoint) => void;
     onLog?: (line: string) => void;
@@ -589,12 +689,17 @@ function buildRemoteTrainingCommand(opts: {
   remoteDir: string;
   hfToken: string;
   modelId: string;
-  maxSteps: number;
+  epochs: number;
+  maxSteps?: number;
   hubRepo?: string;
 }): string {
   const pushFlag = opts.hubRepo
     ? ` --push-to-hub ${shellSingleQuote(opts.hubRepo)}`
     : "";
+  const stepsFlag =
+    opts.maxSteps != null
+      ? ` --max-steps ${opts.maxSteps}`
+      : ` --epochs ${opts.epochs}`;
   return [
     "set -euo pipefail",
     "export PIP_ROOT_USER_ACTION=ignore",
@@ -609,7 +714,7 @@ function buildRemoteTrainingCommand(opts: {
     `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade pip`,
     `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade torch --index-url https://download.pytorch.org/whl/cu124`,
     `${shellSingleQuote(opts.remoteDir)}/.py/bin/python -m pip install --upgrade "transformers>=4.49.0" "datasets>=3.0.0" "accelerate>=1.2.0" "peft>=0.14.0" "trl>=0.25.0" "bitsandbytes>=0.45.0" "pillow>=11.0.0" "huggingface_hub>=0.27.0"`,
-    `HF_TOKEN=${shellSingleQuote(opts.hfToken)} ${shellSingleQuote(opts.remoteDir)}/.py/bin/python train_gemma_lora.py --dataset dataset.jsonl --output adapter --model ${shellSingleQuote(opts.modelId)} --max-steps ${opts.maxSteps}${pushFlag}`,
+    `HF_TOKEN=${shellSingleQuote(opts.hfToken)} ${shellSingleQuote(opts.remoteDir)}/.py/bin/python train_gemma_lora.py --dataset dataset.jsonl --output adapter --model ${shellSingleQuote(opts.modelId)}${stepsFlag}${pushFlag}`,
   ].join(" && ");
 }
 

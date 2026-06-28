@@ -1,13 +1,22 @@
-import { AgentEventSchema, parseSSEData, type AgentEvent } from '@brickbybrick/core'
+import {
+  AgentEventSchema,
+  parseSSEData,
+  type AgentEvent,
+} from "@brickbybrick/core";
 
-type MessageLike = MessageEvent<string> | { data: string }
+type MessageLike = MessageEvent<string> | { data: string };
 
 export function decodeAgentEventMessage(message: string): AgentEvent {
-  const payload = message.trimStart().startsWith('data:')
-    ? parseSSEData(message)
-    : JSON.parse(message)
+  const trimmed = message.trimStart();
+  // Skip SSE comments (lines starting with ':') and empty frames
+  if (!trimmed || trimmed.startsWith(":")) {
+    throw new Error("SSE comment or empty frame — skipped");
+  }
+  const payload = trimmed.startsWith("data:")
+    ? parseSSEData(trimmed)
+    : JSON.parse(trimmed);
 
-  return AgentEventSchema.parse(payload)
+  return AgentEventSchema.parse(payload);
 }
 
 export function createAgentEventHandler(
@@ -16,21 +25,21 @@ export function createAgentEventHandler(
 ) {
   return (message: MessageLike) => {
     try {
-      consumeEvent(decodeAgentEventMessage(message.data))
+      consumeEvent(decodeAgentEventMessage(message.data));
     } catch (error) {
-      onError?.(error)
+      onError?.(error);
     }
-  }
+  };
 }
 
 export function splitSSEFrames(buffer: string): {
-  frames: string[]
-  rest: string
+  frames: string[];
+  rest: string;
 } {
-  const parts = buffer.split(/\r?\n\r?\n/)
-  const rest = parts.pop() ?? ''
+  const parts = buffer.split(/\r?\n\r?\n/);
+  const rest = parts.pop() ?? "";
   return {
     frames: parts.filter(Boolean),
     rest,
-  }
+  };
 }

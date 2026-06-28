@@ -240,6 +240,7 @@ describe("Gemma remote bootstrap", () => {
       remoteDir: "/workspace/bbb-run",
       hfToken: "hf_test",
       modelId: "google/gemma-4-26B-A4B-it",
+      epochs: 3,
       maxSteps: 5,
     });
 
@@ -251,6 +252,18 @@ describe("Gemma remote bootstrap", () => {
     expect(command).toContain('"pillow>=11.0.0"');
     expect(command).toContain("export PIP_ROOT_USER_ACTION=ignore");
     expect(command).toContain("--max-steps 5");
+  });
+
+  it("passes --epochs when maxSteps is omitted", () => {
+    const command = internalPrimeTestUtils.buildRemoteTrainingCommand({
+      remoteDir: "/workspace/bbb-run",
+      hfToken: "hf_test",
+      modelId: "google/gemma-4-26B-A4B-it",
+      epochs: 3,
+    });
+
+    expect(command).toContain("--epochs 3");
+    expect(command).not.toContain("--max-steps");
   });
 });
 
@@ -264,6 +277,43 @@ describe("Gemma remote trainer script", () => {
     expect(GEMMA_LORA_TRAINER_PY).toContain(
       'target_modules=["q_proj.linear", "k_proj.linear", "v_proj.linear", "o_proj.linear"]',
     );
+  });
+
+  it("formats chat messages via tokenizer.apply_chat_template", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain("apply_chat_template");
+    expect(GEMMA_LORA_TRAINER_PY).toContain("formatting_func");
+    expect(GEMMA_LORA_TRAINER_PY).toContain("format_func");
+  });
+
+  it("validates chat_template exists before training", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain("chat_template");
+    expect(GEMMA_LORA_TRAINER_PY).toContain("Tokenizer lacks a chat_template");
+  });
+
+  it("supports --epochs as an alternative to --max-steps", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain("--epochs");
+    expect(GEMMA_LORA_TRAINER_PY).toContain("epoch_steps");
+  });
+
+  it("uses cosine LR scheduler with warmup", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('lr_scheduler_type="cosine"');
+    expect(GEMMA_LORA_TRAINER_PY).toContain("warmup_ratio");
+  });
+
+  it("saves checkpoints during training with a limit", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('save_strategy="steps"');
+    expect(GEMMA_LORA_TRAINER_PY).toContain("save_total_limit=2");
+  });
+
+  it("reports dataset row count after loading", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"rows": len(dataset)');
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"status": "dataset_loaded"');
+  });
+
+  it("reports training config (epochs, batch, steps) before starting", () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"status": "training_config"');
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"steps_per_epoch"');
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"total_steps"');
   });
 });
 
@@ -307,6 +357,7 @@ describe("Gemma remote bootstrap — Hugging Face Hub push", () => {
       remoteDir: "/workspace/bbb-run",
       hfToken: "hf_test",
       modelId: "google/gemma-4-26B-A4B-it",
+      epochs: 3,
       maxSteps: 5,
       hubRepo: "peli/gemma-bbb-lora",
     });
@@ -319,6 +370,7 @@ describe("Gemma remote bootstrap — Hugging Face Hub push", () => {
       remoteDir: "/workspace/bbb-run",
       hfToken: "hf_test",
       modelId: "google/gemma-4-26B-A4B-it",
+      epochs: 3,
       maxSteps: 5,
     });
 

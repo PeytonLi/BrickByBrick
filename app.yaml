@@ -2,7 +2,7 @@ name: brickbybrick
 services:
   - name: web
     github:
-      repo: <YOUR-GITHUB-ORG>/BrickByBrick
+      repo: PeytonLi/BrickByBrick
       branch: main
       deploy_on_push: true
     dockerfile_path: Dockerfile

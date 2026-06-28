@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useMemo } from "react";
 import {
@@ -11,6 +11,7 @@ import {
   CircleDot,
   ShieldCheck,
   Mic2,
+  MicOff,
   Radio,
   Cpu,
   CheckCircle2,
@@ -40,6 +41,7 @@ import {
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  useLocalParticipant,
   useMultibandTrackVolume,
   useTracks,
 } from "@livekit/components-react";
@@ -285,6 +287,7 @@ export function ControlCenter() {
     null,
   );
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
+  const [micMuted, setMicMuted] = useState(false);
   const visualAbortRef = useRef<AbortController | null>(null);
   const trainingAbortRef = useRef<AbortController | null>(null);
 
@@ -774,12 +777,16 @@ export function ControlCenter() {
                     token={liveKitToken.token}
                     serverUrl={liveKitToken.url}
                     connect
-                    audio={false}
+                    audio={true}
                     video={false}
                     className="contents"
                   >
                     <RoomAudioRenderer />
                     <LiveKitNarrationVisualizer />
+                    <MicrophoneControl
+                      muted={micMuted}
+                      onToggle={() => setMicMuted((m) => !m)}
+                    />
                   </LiveKitRoom>
                 ) : (
                   <AgentAudioVisualizer />
@@ -787,12 +794,28 @@ export function ControlCenter() {
               </div>
             </div>
 
-            {/* Connect audio */}
+            {/* Connect audio + mic toggle */}
             <div className="mt-4 flex flex-col gap-2">
-              <Button variant="outline" size="sm" onClick={connectLiveKit}>
-                <Mic2 className="size-4" aria-hidden="true" />
-                Connect audio narration
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={connectLiveKit}>
+                  <Mic2 className="size-4" aria-hidden="true" />
+                  Connect audio narration
+                </Button>
+                {liveKitToken && (
+                  <Button
+                    variant={micMuted ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setMicMuted((m) => !m)}
+                  >
+                    {micMuted ? (
+                      <MicOff className="size-4" aria-hidden="true" />
+                    ) : (
+                      <Mic2 className="size-4" aria-hidden="true" />
+                    )}
+                    {micMuted ? "Mic off" : "Mic on"}
+                  </Button>
+                )}
+              </div>
               {liveKitError && (
                 <p className="text-xs leading-5 text-amber-200">
                   {liveKitError}
@@ -1272,4 +1295,27 @@ function LiveKitNarrationVisualizer() {
   return (
     <AgentAudioVisualizer connected={Boolean(narratorTrack)} levels={levels} />
   );
+}
+
+// ---------------------------------------------------------------------------
+// Microphone toggle — must live inside <LiveKitRoom> for useLocalParticipant
+// ---------------------------------------------------------------------------
+function MicrophoneControl({
+  muted,
+  onToggle,
+}: {
+  muted: boolean;
+  onToggle: () => void;
+}) {
+  const { localParticipant } = useLocalParticipant();
+
+  // Sync the LiveKit mic state with our muted state
+  const prevMuted = useRef(muted);
+  useEffect(() => {
+    if (prevMuted.current === muted) return;
+    prevMuted.current = muted;
+    localParticipant?.setMicrophoneEnabled(!muted).catch(() => {});
+  }, [muted, localParticipant]);
+
+  return null; // UI is rendered outside the room context
 }

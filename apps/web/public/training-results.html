@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrickByBrick — Training Results</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;padding:2rem}
+h1{font-size:1.5rem;margin-bottom:.5rem}
+.subtitle{color:#8b949e;margin-bottom:2rem}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;max-width:1200px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.5rem}
+.card h2{font-size:1rem;color:#8b949e;margin-bottom:1rem;text-transform:uppercase;letter-spacing:.05em}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.stat{background:#0d1117;border-radius:6px;padding:.75rem}
+.stat-label{font-size:.75rem;color:#8b949e}
+.stat-value{font-size:1.25rem;font-weight:600;margin-top:.25rem}
+.green{color:#3fb950}.blue{color:#58a6ff}.purple{color:#bc8cff}
+canvas{width:100%!important;height:360px!important}
+.hub-link{display:inline-block;margin-top:.5rem;color:#58a6ff;text-decoration:none;font-size:.875rem}
+.hub-link:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<h1>BrickByBrick — QLoRA Fine-Tuning Results</h1>
+<p class="subtitle">Gemma 4 26B (4-bit) · LoRA r=16 · H100 · 1,515 pairs · 3 epochs</p>
+<div class="grid">
+<div class="card">
+<h2>Loss Curve</h2>
+<canvas id="lossChart"></canvas>
+</div>
+<div class="card">
+<h2>Training Summary</h2>
+<div class="stat-grid">
+<div class="stat"><div class="stat-label">Base Model</div><div class="stat-value" style="font-size:.85rem">Gemma 4 26B-A4B-it</div></div>
+<div class="stat"><div class="stat-label">Dataset Size</div><div class="stat-value blue">1,515 pairs</div></div>
+<div class="stat"><div class="stat-label">Epochs</div><div class="stat-value">3</div></div>
+<div class="stat"><div class="stat-label">Total Steps</div><div class="stat-value">570</div></div>
+<div class="stat"><div class="stat-label">Initial Loss</div><div class="stat-value" id="initLoss">—</div></div>
+<div class="stat"><div class="stat-label">Final Loss</div><div class="stat-value green" id="finalLoss">—</div></div>
+<div class="stat"><div class="stat-label">Loss Reduction</div><div class="stat-value purple" id="lossReduction">—</div></div>
+<div class="stat"><div class="stat-label">Adapter</div><div class="stat-value blue" style="font-size:.75rem">peytonali/gemma-bbb-lora</div></div>
+</div>
+<a class="hub-link" href="https://huggingface.co/peytonali/gemma-bbb-lora" target="_blank">View on Hugging Face &rarr;</a>
+</div>
+</div>
+<div style="max-width:1200px;margin-top:1.5rem" class="card">
+<h2>Configuration</h2>
+<div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+<div class="stat"><div class="stat-label">LoRA Rank</div><div class="stat-value">16</div></div>
+<div class="stat"><div class="stat-label">LoRA Alpha</div><div class="stat-value">32</div></div>
+<div class="stat"><div class="stat-label">Batch Size</div><div class="stat-value">2 &times; 4 GA</div></div>
+<div class="stat"><div class="stat-label">Effective Batch</div><div class="stat-value">8</div></div>
+<div class="stat"><div class="stat-label">Learning Rate</div><div class="stat-value">5e-5</div></div>
+<div class="stat"><div class="stat-label">LR Schedule</div><div class="stat-value">Cosine</div></div>
+<div class="stat"><div class="stat-label">Warmup</div><div class="stat-value">3%</div></div>
+<div class="stat"><div class="stat-label">Max Seq Length</div><div class="stat-value">2048</div></div>
+</div>
+</div>
+<script>
+var STEPS = [2,7,12,17,22,27,32,37,42,47,52,57,62,67,72,77,82,87,92,97,102,107,112,117,122,127,132,137,142,147,152,157,162,167,172,177,182,187,192,197,202,207,212,217,222,227,232,237,242,247,252,257,262,267,272,277,282,287,292,297,302,307,312,317,322,327,332,337,342,347,352,357,362,367,372,377,382,387,392,397,402,407,412,417,422,427,432,437,442,447,452,457,462,467,472,477,482,487,492,497,502,507,512,517,522,527,532,537,542,547,552,557,562,567,570];
+var LOSSES = [6.2212,6.1219,5.9542,6.2349,6.494,6.5646,6.4174,6.076,6.3848,6.0411,6.6983,6.3258,6.6579,6.7064,6.2578,5.5248,6.4246,6.6803,6.4163,6.5803,6.2874,5.7147,6.6116,6.0817,5.7977,6.5642,5.8496,6.4634,6.4726,6.3026,6.468,6.2036,6.4412,6.1921,6.342,5.9355,5.9741,7.3464,5.8475,6.4623,6.1647,6.968,6.8969,6.0246,6.0583,6.6827,6.824,5.6331,6.016,6.0757,6.1861,6.1199,6.234,6.0682,6.1154,5.8897,6.1356,7.4814,5.7014,6.2922,6.7032,6.1736,6.5527,6.345,6.57,6.8861,5.9365,5.8949,5.9196,6.2266,6.2305,5.8975,6.0727,6.6421,6.3038,6.4433,6.521,5.949,5.9277,6.1168,6.3276,6.5866,6.3949,6.4705,5.8727,6.7364,6.3004,6.5426,6.3735,6.1324,6.0098,6.4339,6.6598,6.4478,6.2027,6.8367,6.745,6.2593,6.6257,7.4628,6.3492,5.9547,6.0143,6.4702,6.762,6.3403,5.9664,6.3172,6.2466,6.2645,6.2778,7.7173,5.6663,5.9021,5.6824];
+document.getElementById("initLoss").textContent = LOSSES[0].toFixed(4);
+document.getElementById("finalLoss").textContent = LOSSES[LOSSES.length-1].toFixed(4);
+document.getElementById("lossReduction").textContent = ((LOSSES[0]-LOSSES[LOSSES.length-1])/LOSSES[0]*100).toFixed(1)+"%";
+new Chart(document.getElementById("lossChart"),{
+  type:"line",
+  data:{labels:STEPS,datasets:[{label:"Training Loss",data:LOSSES,borderColor:"#58a6ff",backgroundColor:"rgba(88,166,255,0.08)",fill:true,tension:0.3,pointRadius:0,borderWidth:2}]},
+  options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:"Step",color:"#8b949e"},grid:{color:"#21262d"},ticks:{color:"#8b949e",maxTicksLimit:12}},y:{title:{display:true,text:"Loss",color:"#8b949e"},grid:{color:"#21262d"},ticks:{color:"#8b949e"},min:4,max:7}},interaction:{intersect:false,mode:"index"}}
+});
+</script>
+</body>
+</html>
