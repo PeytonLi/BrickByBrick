@@ -1,0 +1,63 @@
+name: brickbybrick
+services:
+  - name: web
+    github:
+      repo: <YOUR-GITHUB-ORG>/BrickByBrick
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-s
+    envs:
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ANTIGRAVITY_AGENT
+        scope: RUN_TIME
+        value: antigravity-preview-05-2026
+      - key: GEMINI_LIVE_MODEL
+        scope: RUN_TIME
+        value: gemini-live-2.5-flash-preview
+      - key: GEMINI_LIVE_SAMPLE_RATE
+        scope: RUN_TIME
+        value: "24000"
+      - key: LIVEKIT_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: LIVEKIT_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: LIVEKIT_API_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: PRIME_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: NEXT_PUBLIC_TRAINING_BUCKET_URI
+        scope: RUN_TIME
+        type: SECRET
+      - key: STRONG_MODEL
+        scope: RUN_TIME
+        value: gemini-3.1-pro-preview
+      - key: WEAK_MODEL
+        scope: RUN_TIME
+        value: gemma-4-26b-a4b-it
+      - key: GEMINI_EMBED_MODEL
+        scope: RUN_TIME
+        value: gemini-embedding-001
+      - key: DIGITALOCEAN_MODEL_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: DO_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: MONGODB_ATLAS_URI
+        scope: RUN_TIME
+        type: SECRET
+      - key: MONGODB_DB_NAME
+        scope: RUN_TIME
+        value: brickbybrick
+      - key: BBB_DEMO_MODE
+        scope: RUN_TIME
+        value: "0"

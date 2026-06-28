@@ -32,3 +32,15 @@ test('visual loop commits a pair, then training streams a loss curve', async ({ 
   // The recharts loss line is rendered.
   await expect(trainingConsole.locator('.recharts-line-curve').first()).toBeVisible()
 })
+
+/**
+ * Run history API (E-INTEGRATION §7): GET /api/runs returns persisted runs.
+ * With no Atlas configured (CI/demo) the route returns an empty array; with a
+ * live MONGODB_ATLAS_URI it returns the most recent runs. Either way: 200 + array.
+ */
+test('GET /api/runs returns a JSON array of runs', async ({ request }) => {
+  const res = await request.get('/api/runs')
+  expect(res.status()).toBe(200)
+  const data = await res.json()
+  expect(Array.isArray(data)).toBe(true)
+})

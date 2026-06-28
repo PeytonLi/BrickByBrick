@@ -14,6 +14,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@brickbybrick/core": "workspace:*",
+    "@brickbybrick/db": "workspace:*",
     "@brickbybrick/inference": "workspace:*",
     "@brickbybrick/trainer": "workspace:*",
     "@google/genai": "^1.0.0",

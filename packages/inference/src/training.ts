@@ -1,42 +1,19 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-
 import type { AgentEvent, LossPoint, TrainingPair } from '@brickbybrick/core'
-import {
-  buildTrainingConfig,
-  exportDataset,
-  getCheckpoint,
-  launchTraining,
-  provisionPod,
-  streamMetrics,
-  terminatePod,
-  type ProvisionPodOpts,
-} from '@brickbybrick/trainer'
+import { runGemmaLoraTraining } from '@brickbybrick/trainer'
 
-export interface PrimeTrainingDeps {
-  provisionPod: (opts: ProvisionPodOpts) => { podId: string }
-  launchTraining: (configPath: string, datasetPath: string) => { runId: string }
-  streamMetrics: (
-    runId: string,
-    onPoint: (point: LossPoint) => void,
-  ) => Promise<void>
-  getCheckpoint: (runId: string) => string
-  terminatePod: (podId: string) => void
+export interface GemmaTrainingDeps {
+  runGemmaLoraTraining: (
+    opts: { pairs: TrainingPair[]; runName?: string },
+    callbacks: {
+      onStatus?: (status: string, detail?: string) => void
+      onMetric?: (point: LossPoint) => void
+      onLog?: (line: string) => void
+    },
+  ) => Promise<{ podId: string; adapterPath: string; runName: string }>
 }
 
-export interface PrimeTrainingOptions {
-  gpuType?: string
-  podName?: string
-  cleanupTempFiles?: boolean
-}
-
-const realPrimeDeps: PrimeTrainingDeps = {
-  provisionPod,
-  launchTraining,
-  streamMetrics,
-  getCheckpoint,
-  terminatePod,
+const realDeps: GemmaTrainingDeps = {
+  runGemmaLoraTraining,
 }
 
 function trainingEvent(event: Omit<Extract<AgentEvent, { type: 'training_event' }>, 'type'>): AgentEvent {
@@ -50,58 +27,40 @@ function errorMessage(error: unknown): string {
 export async function runPrimeTraining(
   pairs: TrainingPair[],
   emit: (event: AgentEvent) => void,
-  deps: PrimeTrainingDeps = realPrimeDeps,
-  options: PrimeTrainingOptions = {},
+  deps: GemmaTrainingDeps = realDeps,
 ): Promise<void> {
   if (pairs.length === 0) {
     emit({ type: 'narration', text: 'No committed pairs available; skipping Prime training.' })
     return
   }
 
-  const gpuType = options.gpuType ?? 'H100_80GB'
-  const podName = options.podName ?? `bbb-lora-${Date.now()}`
-  const cleanupTempFiles = options.cleanupTempFiles ?? true
-  let podId: string | null = null
-  let workdir: string | null = null
+  const runName = `bbb-gemma-${Date.now()}`
 
   try {
-    emit(trainingEvent({ status: 'provisioning', instance: podName }))
-    const pod = deps.provisionPod({ name: podName, gpu_type: gpuType })
-    podId = pod.podId
-    emit(trainingEvent({ status: 'provisioning', instance: podId }))
+    emit(trainingEvent({ status: 'provisioning', instance: runName }))
+    const result = await deps.runGemmaLoraTraining(
+      { pairs, runName },
+      {
+        onStatus: (status, detail) => {
+          const eventStatus = status as Extract<AgentEvent, { type: 'training_event' }>['status']
+          emit(trainingEvent({ status: eventStatus, instance: detail }))
+        },
+        onMetric: (loss) => emit(trainingEvent({ status: 'training', loss })),
+        onLog: (line) => {
+          if (/error|failed|traceback/i.test(line)) {
+            emit({ type: 'narration', text: line.slice(0, 240) })
+          }
+        },
+      },
+    )
 
-    workdir = mkdtempSync(join(tmpdir(), 'bbb-training-'))
-    const configPath = join(workdir, 'train.toml')
-    const datasetPath = join(workdir, 'dataset.jsonl')
-    writeFileSync(configPath, buildTrainingConfig(), 'utf8')
-    writeFileSync(datasetPath, exportDataset(pairs), 'utf8')
-
-    emit(trainingEvent({ status: 'streaming_dataset', instance: podId }))
-    const { runId } = deps.launchTraining(configPath, datasetPath)
-    emit({ type: 'narration', text: `Prime training launched: ${runId}.` })
-
-    await deps.streamMetrics(runId, (loss) => {
-      emit(trainingEvent({ status: 'training', instance: podId ?? undefined, loss }))
+    emit({
+      type: 'narration',
+      text: `Exact Gemma LoRA adapter ready on Prime pod ${result.podId}: ${result.adapterPath}`,
     })
-
-    emit(trainingEvent({ status: 'saving', instance: podId }))
-    const checkpoint = deps.getCheckpoint(runId)
-    emit({ type: 'narration', text: `Prime checkpoint ready: ${checkpoint}` })
-    emit(trainingEvent({ status: 'complete', instance: podId }))
+    emit(trainingEvent({ status: 'complete', instance: result.adapterPath }))
   } catch (error) {
-    emit(trainingEvent({ status: 'failed', instance: podId ?? podName }))
-    emit({ type: 'narration', text: `Prime training failed: ${errorMessage(error)}` })
-  } finally {
-    if (podId) {
-      try {
-        deps.terminatePod(podId)
-      } catch (error) {
-        emit({ type: 'narration', text: `Prime pod teardown failed: ${errorMessage(error)}` })
-      }
-    }
-
-    if (cleanupTempFiles && workdir) {
-      rmSync(workdir, { recursive: true, force: true })
-    }
+    emit(trainingEvent({ status: 'failed', instance: runName }))
+    emit({ type: 'narration', text: `Prime Gemma training failed: ${errorMessage(error)}` })
   }
 }

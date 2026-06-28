@@ -57,6 +57,7 @@ export function ControlCenter() {
 
   const [visualState, setVisualState] = useState<StreamState>('idle')
   const [trainingState, setTrainingState] = useState<StreamState>('idle')
+  const [trainingRunId, setTrainingRunId] = useState('demo-run')
   const [liveKitToken, setLiveKitToken] = useState<LiveKitTokenPayload | null>(null)
   const [liveKitError, setLiveKitError] = useState<string | null>(null)
   const visualAbortRef = useRef<AbortController | null>(null)
@@ -102,7 +103,7 @@ export function ControlCenter() {
         signal: controller.signal,
         init: {
           method: 'POST',
-          body: JSON.stringify({ runId: 'demo-run' }),
+          body: JSON.stringify({ runId: trainingRunId }),
         },
         onEvent: consumeEvent,
       })
@@ -172,6 +173,16 @@ export function ControlCenter() {
               aria-label="Target synthesized pairs"
             />
           </label>
+          <label className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-zinc-300">
+            Run
+            <input
+              className="h-6 w-28 rounded border border-white/10 bg-black px-2 text-sm text-white outline-none focus:border-emerald-300"
+              type="text"
+              value={trainingRunId}
+              onChange={(event) => setTrainingRunId(event.target.value)}
+              aria-label="Prime training run id"
+            />
+          </label>
           <Button onClick={runVisualLoop} disabled={visualState === 'streaming'}>
             {visualState === 'streaming' ? (
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -183,7 +194,7 @@ export function ControlCenter() {
           <Button
             variant="secondary"
             onClick={streamTraining}
-            disabled={trainingState === 'streaming'}
+            disabled={trainingState === 'streaming' || trainingRunId.trim().length === 0}
           >
             <Radio className="size-4" aria-hidden="true" />
             Stream metrics

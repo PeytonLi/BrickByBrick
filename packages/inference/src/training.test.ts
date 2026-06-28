@@ -1,9 +1,7 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentEvent, TrainingPair } from '@brickbybrick/core'
-import { runPrimeTraining, type PrimeTrainingDeps } from './training'
+import { runPrimeTraining, type GemmaTrainingDeps } from './training'
 
 const pair: TrainingPair = {
   id: 'pair-1',
@@ -24,49 +22,30 @@ const pair: TrainingPair = {
   u_score: 1,
 }
 
-function makeDeps(overrides: Partial<PrimeTrainingDeps> = {}): PrimeTrainingDeps {
-  return {
-    provisionPod: vi.fn(() => ({ podId: 'pod-1' })),
-    launchTraining: vi.fn(() => ({ runId: 'run-1' })),
-    streamMetrics: vi.fn(async (_runId, onPoint) => {
-      onPoint({ step: 1, loss: 2.4, epoch: 0 })
-      onPoint({ step: 2, loss: 2.1, epoch: 0.5 })
-    }),
-    getCheckpoint: vi.fn(() => '/checkpoints/run-1/latest'),
-    terminatePod: vi.fn(),
-    ...overrides,
-  }
-}
-
 function collect() {
   const events: AgentEvent[] = []
   return { events, emit: (event: AgentEvent) => events.push(event) }
 }
 
 describe('runPrimeTraining', () => {
-  it('writes dataset/config files, streams metrics, fetches checkpoint, and terminates the pod', async () => {
-    const deps = makeDeps()
-    const launchTraining = vi.mocked(deps.launchTraining)
-    let configText = ''
-    let datasetText = ''
-    launchTraining.mockImplementation((configPath, datasetPath) => {
-      configText = readFileSync(configPath, 'utf8')
-      datasetText = readFileSync(datasetPath, 'utf8')
-      return { runId: 'run-1' }
-    })
+  it('bridges exact Gemma pod training callbacks into training events', async () => {
+    const deps: GemmaTrainingDeps = {
+      runGemmaLoraTraining: vi.fn(async (_opts, callbacks) => {
+        callbacks.onStatus?.('streaming_dataset', 'pod-1')
+        callbacks.onMetric?.({ step: 1, loss: 2.4, epoch: 0 })
+        callbacks.onMetric?.({ step: 2, loss: 2.1, epoch: 0.5 })
+        callbacks.onStatus?.('saving', '/workspace/adapter')
+        return { podId: 'pod-1', adapterPath: '/workspace/adapter', runName: 'bbb-test' }
+      }),
+    }
     const { events, emit } = collect()
 
-    await runPrimeTraining([pair], emit, deps, { podName: 'bbb-test', cleanupTempFiles: true })
+    await runPrimeTraining([pair], emit, deps)
 
-    expect(deps.provisionPod).toHaveBeenCalledWith({
-      name: 'bbb-test',
-      gpu_type: 'H100_80GB',
-    })
-    expect(configText).toContain('rank = 16')
-    expect(configText).toContain('alpha = 32')
-    expect(JSON.parse(datasetText)).toEqual(pair)
-    expect(deps.getCheckpoint).toHaveBeenCalledWith('run-1')
-    expect(deps.terminatePod).toHaveBeenCalledWith('pod-1')
+    expect(deps.runGemmaLoraTraining).toHaveBeenCalledWith(
+      expect.objectContaining({ pairs: [pair] }),
+      expect.any(Object),
+    )
     expect(
       events.filter((event) => event.type === 'training_event' && event.loss).map((event) => {
         if (event.type !== 'training_event') return null
@@ -74,35 +53,48 @@ describe('runPrimeTraining', () => {
       }),
     ).toEqual([2.4, 2.1])
     expect(events.some((event) => event.type === 'training_event' && event.status === 'complete')).toBe(true)
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'narration' &&
+          event.text.includes('Exact Gemma LoRA adapter ready on Prime pod pod-1'),
+      ),
+    ).toBe(true)
   })
 
-  it('emits failed and still terminates the pod when training fails', async () => {
-    const deps = makeDeps({
-      streamMetrics: vi.fn(async () => {
-        throw new Error('metrics unavailable')
+  it('emits failed when exact Gemma training fails', async () => {
+    const deps: GemmaTrainingDeps = {
+      runGemmaLoraTraining: vi.fn(async () => {
+        throw new Error('HF_TOKEN is required')
       }),
-    })
+    }
     const { events, emit } = collect()
 
-    await runPrimeTraining([pair], emit, deps, { podName: 'bbb-test' })
+    await runPrimeTraining([pair], emit, deps)
 
-    expect(deps.terminatePod).toHaveBeenCalledWith('pod-1')
     expect(events.some((event) => event.type === 'training_event' && event.status === 'failed')).toBe(true)
     expect(
       events.some(
         (event) =>
-          event.type === 'narration' && event.text.includes('Prime training failed: metrics unavailable'),
+          event.type === 'narration' &&
+          event.text.includes('Prime Gemma training failed: HF_TOKEN is required'),
       ),
     ).toBe(true)
   })
 
   it('skips Prime calls when no pairs are available', async () => {
-    const deps = makeDeps()
+    const deps: GemmaTrainingDeps = {
+      runGemmaLoraTraining: vi.fn(async () => ({
+        podId: 'pod-1',
+        adapterPath: '/workspace/adapter',
+        runName: 'bbb-test',
+      })),
+    }
     const { events, emit } = collect()
 
     await runPrimeTraining([], emit, deps)
 
-    expect(deps.provisionPod).not.toHaveBeenCalled()
+    expect(deps.runGemmaLoraTraining).not.toHaveBeenCalled()
     expect(events).toEqual([
       { type: 'narration', text: 'No committed pairs available; skipping Prime training.' },
     ])

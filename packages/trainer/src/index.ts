@@ -7,5 +7,23 @@ export {
   streamMetrics,
   getCheckpoint,
   terminatePod,
+  getPodStatus,
+  waitForPodSsh,
+  runGemmaLoraTraining,
+  createPrimeTrainingDeps,
 } from './prime'
-export type { ProvisionPodOpts } from './prime'
+export type {
+  ProvisionPodOpts,
+  PodStatus,
+  SshTarget,
+  GemmaLoraTrainingOpts,
+  GemmaLoraTrainingCallbacks,
+  GemmaLoraTrainingResult,
+  PrimeTrainingDeps,
+} from './prime'
+
+export {
+  resolveTrainingProvider,
+  createDOTrainingDeps,
+} from './providers/index'
+export type { TrainingProvider, DOTrainingDeps, DOProvisionPodOpts } from './providers/index'

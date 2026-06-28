@@ -9,6 +9,8 @@ import {
   type VisualLoopRequest,
 } from '@brickbybrick/core'
 
+import { connectDB, RunModel, PairModel, EventModel } from '@brickbybrick/db'
+
 import {
   createGeminiLiveNarrationBridge,
   createNoopNarrationBridge,
@@ -72,6 +74,36 @@ export async function POST(request: Request) {
         }
       }
 
+      // --- DB persistence (degraded-but-not-broken on failure) -------------
+      let runId: string | null = null
+      let eventSeq = 0
+      let committedCount = 0
+      const EVENT_BATCH_SIZE = 5
+      let eventBatch: AgentEvent[] = []
+
+      const flushEventBatch = async () => {
+        if (eventBatch.length === 0 || !runId) return
+        const batch = eventBatch
+        eventBatch = []
+        await EventModel.insertBatch(runId, batch, eventSeq - batch.length)
+      }
+
+      try {
+        await connectDB()
+        runId = crypto.randomUUID()
+        await RunModel.create({
+          runId,
+          config: parsed.data,
+          status: 'running',
+          startedAt: new Date(),
+          pairsCommitted: 0,
+          totalIterations: 0,
+        })
+      } catch {
+        // No DB — stream still runs, just unpersisted.
+        runId = null
+      }
+
       bridge =
         process.env.BBB_DEMO_MODE === '1'
           ? createNoopNarrationBridge()
@@ -83,6 +115,25 @@ export async function POST(request: Request) {
         emitSSE(event)
         if (event.type === 'narration') {
           bridge?.enqueue(event.text)
+        }
+        if (runId) {
+          eventBatch.push(event)
+          eventSeq++
+          if (eventBatch.length >= EVENT_BATCH_SIZE) {
+            flushEventBatch().catch(() => {})
+          }
+          if (event.type === 'pair_committed') {
+            committedCount++
+            PairModel.create({
+              pairId: event.pair.id,
+              runId,
+              task: event.pair.task,
+              weak_code: event.pair.weak_code,
+              defect: event.pair.defect,
+              strong_code: event.pair.strong_code,
+              u_score: event.u_score,
+            }).catch(() => {})
+          }
         }
       }
 
@@ -97,6 +148,17 @@ export async function POST(request: Request) {
               : 'Visual loop failed.',
         })
       } finally {
+        if (runId) {
+          await flushEventBatch().catch(() => {})
+          await RunModel.updateOne(
+            { runId },
+            {
+              status: aborted ? 'failed' : 'complete',
+              completedAt: new Date(),
+              pairsCommitted: committedCount,
+            },
+          ).catch(() => {})
+        }
         await bridge?.close()
         controllerOpen = false
         if (!aborted) {

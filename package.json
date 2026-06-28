@@ -6,9 +6,12 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "demo:preflight": "node scripts/demo/preflight.mjs",
+    "demo:rehearsal": "tsx scripts/demo/rehearsal.ts"
   },
   "devDependencies": {
+    "tsx": "^4.22.4",
     "turbo": "^2.5.4",
     "typescript": "^5.7.3"
   },

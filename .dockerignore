@@ -1,0 +1,14 @@
+node_modules
+.next
+.turbo
+.git
+.gitignore
+__fixtures__
+**/__fixtures__/**
+.env
+.env.*
+*.md
+!README.md
+.kiro
+.vscode
+.idea

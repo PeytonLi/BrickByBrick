@@ -1,36 +1,37 @@
-# Feature Brief — B · Infra Agent
+# Feature Brief - B Infra Agent
 
-**Worktree:** `feat/infra` off the setup commit. **Owns:** `packages/trainer`.
-**Method:** TDD — RED → GREEN → REFACTOR.
-**Imports only** from frozen `@brickbybrick/core`. Never edits `packages/core`.
+`packages/trainer` owns the real Prime Intellect integration.
 
-## Prereqs
-Read [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §4 and the setup fixture `packages/trainer/__fixtures__/metrics.sample.txt`.
+## Current Reality
 
-## Deliverables
+Prime Hosted Training (`prime train`) is useful for Prime-managed environments, but it
+does not currently list Gemma in `prime train models`. The exact-Gemma demo therefore
+uses Prime compute pods:
 
-### `packages/trainer/src/prime.ts`
-`child_process` wrappers over the `prime` CLI (real commands in ARCHITECTURE §4):
-- `provisionPod(opts): { podId }` — `prime pods create`
-- `launchTraining(configPath, datasetPath): { runId }` — `prime train <cfg>.toml`
-- `streamMetrics(runId, onPoint): void` — parse `prime train metrics`/`logs -f` → `LossPoint[]` (build the parser against the fixture)
-- `getCheckpoint(runId): path` — `prime train checkpoints`
-- `terminatePod(podId): void` — `prime pods terminate` (call on completion to kill idle spend)
+1. Provision an H100 pod with `prime pods create`.
+2. Wait for `prime pods status --output json` to expose SSH.
+3. Copy committed-pair JSONL and `train_gemma_lora.py` to the pod.
+4. Run 4-bit QLoRA against `google/gemma-4-26B-A4B-it`.
+5. Parse JSON loss lines into `LossPoint`.
+6. Terminate the pod unless `BBB_KEEP_POD=1`.
 
-### `packages/trainer/src/dataset.ts`
-- `exportDataset(pairs: TrainingPair[]): string` — emit JSONL (one trajectory packet per line: task → weak code → defect snapshot ref → strong fix).
+## Trainer Surface
 
-### `packages/trainer/src/config.ts`
-- `buildTrainingConfig(opts): TOML` — base `google/gemma-4-9b-it`, `lora_rank=16`, `lora_alpha=32`, `lora_target_modules=[q,v,k,o]_proj`, `epochs=3`, `batch_size=4`, `lr=2e-4`.
+- `runGemmaLoraTraining(opts, callbacks)` - full exact-Gemma pod training flow.
+- `provisionPod(opts)` - noninteractive pod creation using `--plain`, `--yes`, and either `PRIME_GPU_ID` or `H100_80GB`.
+- `getPodStatus(podId)` / `waitForPodSsh(podId)` - status polling.
+- `parseSshTarget`, `copyToPod`, `runRemote` - SSH/SCP helpers.
+- `streamMetrics(runId, onPoint)` - compatibility wrapper for Prime Hosted Training metrics JSON.
+- `terminatePod(podId)` - noninteractive teardown.
 
-### Demo dataset
-- Commit a **real pre-built JSONL** (the "2,000") as a fixture/artifact the integration agent points training at. Generate it by running the engine loop offline if available, else a representative hand-built set.
+## Test Focus
 
-## TDD focus (mock `child_process`)
-- `exportDataset` JSONL shape (valid JSON per line, schema-conformant).
-- `streamMetrics` parsing → correct `LossPoint{step,loss,epoch}` from the fixture.
-- `buildTrainingConfig` emits valid TOML with the LoRA params.
-- `terminatePod` invoked on completion path.
+- Mock `child_process` and verify argument-array command construction.
+- Parse Prime status and metrics JSON.
+- Convert `TrainingPair[]` into chat JSONL for SFT.
+- Ensure training failure and teardown failure paths are observable.
 
-## Done when
-All trainer unit tests green; `pnpm --filter @brickbybrick/trainer test build type-check` green; demo JSONL committed.
+## Demo Checks
+
+- `pnpm demo:preflight` must pass before any recording.
+- `BBB_ALLOW_PAID_REHEARSAL=1 pnpm demo:rehearsal` must emit at least one metric line before relying on the live demo.

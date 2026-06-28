@@ -80,18 +80,18 @@ Native to Flash since 2026-06-24. Screenshot-in → structured UI action out on 
 
 ## 4. Prime Intellect (CLI, via `child_process`)
 
+Exact Gemma training runs on Prime compute pods, not Prime Hosted Training. Hosted Training currently exposes Prime-managed model/environment runs and does not list Gemma as a trainable model, so the trainer provisions an H100 pod and runs our own QLoRA script.
+
 ```bash
-prime login                            # or PRIME_API_KEY env
-prime availability list --gpu-type H100_80GB
-prime pods create --name bbb-lora
-prime train init                       # generates a training TOML
-prime train <config>.toml              # launch LoRA job → run-id
-prime train logs <run-id> -f           # stream logs
-prime train metrics <run-id>           # → loss points (parse for the curve)
-prime train checkpoints <run-id>       # fetch trained adapter
-prime pods terminate <pod-id>          # teardown (kill idle spend)
+prime availability list --gpu-type H100_80GB --output json
+prime pods create --id <h100-id> --name bbb-lora --yes --plain
+prime pods status <pod-id> --output json      # wait for ACTIVE + ssh
+scp dataset.jsonl train_gemma_lora.py <ssh>:/workspace/<run>/
+ssh <ssh> 'HF_TOKEN=... python train_gemma_lora.py ...'
+prime pods terminate <pod-id> --yes --plain
 ```
-LoRA is a built-in trainer arg (`use_lora`, `lora_rank`, `lora_alpha`, `lora_dropout`, `lora_target_modules`). Base model `google/gemma-4-9b-it`, r=16, α=32, target `q/v/k/o_proj`, epochs=3.
+
+The remote script trains `google/gemma-4-26B-A4B-it` with 4-bit QLoRA, r=16, alpha=32, target `q/k/v/o_proj`, and streams JSON loss lines back to the UI.
 
 ## 5. The Visual Break-and-Fix Loop
 
@@ -129,6 +129,8 @@ Engine entry signature (also in core): `runVisualLoop(config: GenerationConfig, 
 
 ## 8. Environment variables
 
+See [`.env.example`](../.env.example) for the complete, commented inventory. Core keys:
+
 ```bash
 GEMINI_API_KEY=
 ANTIGRAVITY_AGENT=antigravity-preview-05-2026
@@ -137,4 +139,41 @@ LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 PRIME_API_KEY=
 NEXT_PUBLIC_TRAINING_BUCKET_URI=
+MONGODB_ATLAS_URI=
+DIGITALOCEAN_MODEL_ACCESS_KEY=
+DO_API_TOKEN=
 ```
+
+## 9. MongoDB Atlas persistence (`@brickbybrick/db`)
+
+Every loop run is persisted to MongoDB Atlas via the `@brickbybrick/db` package
+(Mongoose v8, connection singleton that survives Next.js hot reload):
+
+- **Runs** — one document per loop invocation (config, status, timing, totals).
+- **Pairs** — committed training pairs with their utility (𝒰) scores.
+- **Events** — the full `AgentEvent` stream, batched (every 5 events) for replay.
+- **Tasks** — the task bank with usage counters.
+
+Wired into the SSE routes (`api/agent/visual-loop/stream`, `api/training/stream`)
+as **fire-and-forget** writes — a DB failure degrades to an unpersisted stream
+rather than breaking the loop. History is queryable via `GET /api/runs` and
+`GET /api/runs/:id` (run + pairs + events). Tests use `mongodb-memory-server`,
+so `pnpm test` needs no live Atlas.
+
+## 10. DigitalOcean Serverless Inference (fallback)
+
+When Gemini returns 429/5xx, the loop transparently falls back to DigitalOcean's
+OpenAI-compatible serverless inference (`packages/inference/src/providers/`):
+a `FallbackProvider` wraps each solver/embed method, emits a narration event on
+switch, and retries against DO. Defaults: Claude 4.6 Sonnet (strong),
+Llama 3.3 70B (weak), GTE Large (embeddings) — overridable via `DO_*_MODEL`.
+The Gemini primary path is unchanged; DO only activates on error.
+
+## 11. DigitalOcean GPU training (alternative to Prime Intellect)
+
+`packages/trainer/src/providers/` adds a DO GPU Droplet provider alongside Prime.
+`resolveTrainingProvider()` reads `BBB_TRAINING_PROVIDER` (`prime` default, or
+`do-gpu`). The DO path uses `doctl` to provision an H100/A100/L40S droplet, `scp`
+the dataset + TOML config, runs a LoRA fine-tune (`peft`/`transformers`) emitting
+JSON-lines loss to a log, streams it back over SSH, then terminates the droplet.
+Prime remains the default; both expose the same logical interface.
