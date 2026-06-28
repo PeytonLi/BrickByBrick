@@ -15,7 +15,7 @@ Wrapper over the Interactions API (real shapes in ARCHITECTURE §2):
 - `continueInteraction(prevId, envId, input): …` (multi-turn)
 - streaming parse (`stream:true` deltas)
 - `extractScreenshots(steps): AuditStep[]` — **build against the committed fixture**
-- `downloadEnvironment(envId): Buffer` (TAR) and `destroyEnvironment(envId)`
+- `destroyInteraction(interactionId)` → `DELETE /v1beta/interactions/{id}` for sandbox teardown (no FS-download endpoint exists, so the full-res TAR path was dropped — thumbnails are the dataset image source)
 
 ### `packages/inference/src/gemini.ts`
 - `strongSolver(task, defect): code` — Gemini 3.5 Pro.

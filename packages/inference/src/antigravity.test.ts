@@ -9,8 +9,7 @@ import {
   parseAuditStepsFromText,
   frameDeltaText,
   parseAuditReport,
-  downloadEnvironment,
-  destroyEnvironment,
+  destroyInteraction,
   computeCostMicrocents,
   type InteractionResult,
   type AntigravityUsage,
@@ -351,26 +350,6 @@ describe("continueInteraction — multi-turn same sandbox", () => {
   });
 });
 
-describe("downloadEnvironment — TAR archive of the sandbox (full-res PNGs)", () => {
-  it("GETs the files download endpoint and returns a Buffer", async () => {
-    const bytes = new Uint8Array([1, 2, 3, 4]).buffer;
-    const fetchMock = vi.fn(async (..._args: unknown[]) => ({
-      ok: true,
-      status: 200,
-      arrayBuffer: async () => bytes,
-      text: async () => "",
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const buf = await downloadEnvironment("8c31eeec", { sleep: noSleep });
-    expect(Buffer.isBuffer(buf)).toBe(true);
-    expect(buf.length).toBe(4);
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toContain("files/environment-8c31eeec:download");
-    expect(url).toContain("alt=media");
-  });
-});
-
 describe("parseInteractionStream — usage block (Finding G)", () => {
   it("extracts the usage object from the terminal interaction.completed frame", () => {
     const raw = [
@@ -445,8 +424,8 @@ describe("computeCostMicrocents — Gemini 2.5 Pro pricing (Finding G)", () => {
   });
 });
 
-describe("destroyEnvironment — teardown", () => {
-  it("issues a DELETE for the environment", async () => {
+describe("destroyInteraction — teardown", () => {
+  it("issues a DELETE for the interaction (verified live: /v1beta/interactions/{id})", async () => {
     const fetchMock = vi.fn(async (..._args: unknown[]) => ({
       ok: true,
       status: 200,
@@ -454,9 +433,10 @@ describe("destroyEnvironment — teardown", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await destroyEnvironment("8c31eeec", { sleep: noSleep });
+    await destroyInteraction("8c31eeec", { sleep: noSleep });
     const [url, init] = fetchMock.mock.calls[0];
     expect((init as any).method).toBe("DELETE");
-    expect(url).toContain("environment-8c31eeec");
+    expect(url).toContain("/interactions/8c31eeec");
+    expect(url).not.toContain("environment-");
   });
 });

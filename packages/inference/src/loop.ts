@@ -24,7 +24,7 @@ import {
   parseAuditStepsFromText,
   frameDeltaText,
   parseAuditReport,
-  destroyEnvironment,
+  destroyInteraction,
   computeCostMicrocents,
 } from "./antigravity";
 import {
@@ -73,8 +73,8 @@ export interface VisualLoopDeps {
     emit: (e: AgentEvent) => void,
   ) => Promise<void>;
   newId: () => string;
-  /** Called after an audit with the environmentId to tear down the sandbox (Finding F). */
-  destroySandbox?: (environmentId: string) => Promise<void>;
+  /** Called after an audit with the interactionId to tear down the sandbox (Finding F). */
+  destroySandbox?: (interactionId: string) => Promise<void>;
   /** Safety cap so a run of all-rejections still terminates. */
   maxIterations?: number;
 }
@@ -356,7 +356,8 @@ function toAuditResult(
 /** Live dependency set: the real Gemini + Antigravity clients. */
 export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
   const solver = opts?.solverSet;
-  const destroySandbox = (envId: string) => destroyEnvironment(envId);
+  const destroySandbox = (interactionId: string) =>
+    destroyInteraction(interactionId);
 
   return {
     challenge: async (config) => {
@@ -389,17 +390,24 @@ export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
         for (; emitted < steps.length; emitted++)
           emit({ type: "audit_step", step: steps[emitted] });
       };
-      let envId = "";
+      // Capture the interaction id as early as the stream reveals it so a run
+      // that throws mid-stream still gets torn down (teardown keys on it).
+      let interactionId = "";
+      const captureId = (frame: { interaction?: { id?: string }; interaction_id?: string }) => {
+        const id = frame.interaction?.id ?? frame.interaction_id;
+        if (id && !interactionId) interactionId = id;
+      };
       try {
         const interaction = await createInteraction(prompt, {
           onEvent: (frame) => {
+            captureId(frame as { interaction?: { id?: string }; interaction_id?: string });
             const text = frameDeltaText(frame);
             if (!text) return;
             liveBuf += text;
             emitNew(parseAuditStepsFromText(liveBuf));
           },
         });
-        envId = interaction.environmentId;
+        interactionId = interaction.id || interactionId;
         // Emit live cost from the Antigravity usage block (Finding G)
         if (interaction.usage) {
           const cost = computeCostMicrocents(interaction.usage);
@@ -410,8 +418,8 @@ export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
         emitNew(steps);
         return toAuditResult(task, steps, parseAuditReport(interaction));
       } finally {
-        if (envId) {
-          destroySandbox(envId).catch(() => {
+        if (interactionId) {
+          destroySandbox(interactionId).catch(() => {
             /* best-effort teardown; don't fail the audit on cleanup errors */
           });
         }

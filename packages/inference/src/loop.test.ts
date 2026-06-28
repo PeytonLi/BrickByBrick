@@ -411,7 +411,7 @@ describe("makeDiff", () => {
 // ---------------------------------------------------------------------------
 
 describe("WP-2 — sandbox teardown wired through deps (Finding F)", () => {
-  it("defaultDeps wires destroySandbox to the real destroyEnvironment", () => {
+  it("defaultDeps wires destroySandbox to the real destroyInteraction", () => {
     const deps = defaultDeps();
     expect(deps.destroySandbox).toBeDefined();
     expect(typeof deps.destroySandbox).toBe("function");
@@ -429,7 +429,7 @@ describe("WP-2 — sandbox teardown wired through deps (Finding F)", () => {
     await runVisualLoop(cfg({ max_pairs: 1 }), emit, deps);
 
     // We proved the loop completed with the destroySandbox dep wired.
-    // The real teardown call is tested in antigravity.test.ts (destroyEnvironment unit).
+    // The real teardown call is tested in antigravity.test.ts (destroyInteraction unit).
     expect(events.some((e) => e.type === "pair_committed")).toBe(true);
   });
 

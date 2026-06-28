@@ -31,13 +31,13 @@ are the ground-truth shapes `antigravity.ts` is built and tested against.
 
 1. **Screenshots are NOT in the response.** The agent ran its own Playwright via
    `code_execution` and saved PNGs to the sandbox filesystem; zero image bytes appear
-   in the stream. We retrieve them two ways (hybrid):
-   - live: the audit prompt makes the agent print base64 JPEG thumbnails wrapped in
-     `<<<AUDIT_STEP>>>…<<<END>>>` sentinels (parsed by `extractAuditSteps` /
-     `parseAuditStepsFromText`);
-   - full-res: `downloadEnvironment()` pulls the sandbox TAR for the dataset.
-   The verdict rides the final `model_output` text as a `<<<VERDICT>>>…<<<END>>>`
-   JSON block (parsed by `parseAuditReport`).
+   in the stream. The sandbox FS is NOT retrievable — the Interactions API exposes no
+   environment/Files download endpoint (a finished interaction's only lifecycle call
+   is `DELETE /v1beta/interactions/{id}`). So the audit prompt makes the agent print
+   base64 JPEG thumbnails wrapped in `<<<AUDIT_STEP>>>…<<<END>>>` sentinels (parsed by
+   `extractAuditSteps` / `parseAuditStepsFromText`); these stream to the UI live AND
+   are the dataset's image source. The verdict rides the final `model_output` text as
+   a `<<<VERDICT>>>…<<<END>>>` JSON block (parsed by `parseAuditReport`).
 2. **Latency ≈ 7 min per audit** (the sample: 20:40:52 → 20:47:40). The loop runs two
    audits per pair, so plan for ~14 min/pair → small live targets (1–2 pairs).
 

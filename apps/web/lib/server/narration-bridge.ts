@@ -14,7 +14,7 @@ import {
 
 const DEFAULT_ROOM = 'brickbybrick-control'
 const DEFAULT_TRACK_NAME = 'gemini-live-narration'
-const DEFAULT_LIVE_MODEL = 'gemini-live-2.5-flash-preview'
+const DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-latest'
 const DEFAULT_TURN_TIMEOUT_MS = 60_000
 
 export interface NarrationAudioBridge {

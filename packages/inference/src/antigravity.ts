@@ -21,13 +21,13 @@ import { withRetry, type RetryOptions } from "./gemini";
  * `interaction` object: { id, environment_id, status, steps[] }.
  *
  * Screenshots are NOT in the stream — the agent saves PNGs to the sandbox
- * filesystem. We retrieve them two ways (see ARCHITECTURE / DECISIONS, hybrid):
- *   1. live preview: the audit prompt makes the agent print small base64 JPEG
- *      thumbnails wrapped in <<<AUDIT_STEP>>>…<<<END>>> sentinels (parsed by
- *      extractAuditSteps) so the UI can stream them as the audit runs;
- *   2. full-res: downloadEnvironment() pulls the sandbox TAR for the dataset.
- * The verdict rides the final model_output text as a <<<VERDICT>>>…<<<END>>>
- * JSON block (parsed by parseAuditReport).
+ * filesystem, which the Interactions API does NOT expose for download (there is
+ * no environment/Files endpoint: the sandbox is owned by the interaction
+ * lifecycle, not a retrievable resource). So the audit prompt makes the agent
+ * print small base64 JPEG thumbnails wrapped in <<<AUDIT_STEP>>>…<<<END>>>
+ * sentinels (parsed by extractAuditSteps); these both stream to the UI live AND
+ * are the dataset's image source. The verdict rides the final model_output text
+ * as a <<<VERDICT>>>…<<<END>>> JSON block (parsed by parseAuditReport).
  */
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -384,31 +384,12 @@ export function parseAuditReport(result: InteractionResult): AuditReport {
   };
 }
 
-/** Download the sandbox file system (full-res PNGs, JSONL artifacts) as a TAR Buffer. */
-export async function downloadEnvironment(
-  environmentId: string,
-  opts: RetryOptions = {},
-): Promise<Buffer> {
-  return withRetry(async () => {
-    const res = await fetch(
-      `${GEMINI_BASE}/files/environment-${environmentId}:download?alt=media`,
-      {
-        headers: { "x-goog-api-key": apiKey() },
-      },
-    );
-    if (!res.ok) {
-      throw new Error(
-        `Antigravity download ${environmentId} → ${res.status}: ${await res.text()}`,
-      );
-    }
-    return Buffer.from(await res.arrayBuffer());
-  }, opts);
-}
-
 /**
- * Convert Antigravity token usage to microcents (1/1,000,000 $).
- * Pricing: Gemini 2.5 Pro standard tier — $1.25/M input, $10/M output.
- * Cached tokens are billed at $0.3125/M (25% of input price).
+ * Convert Antigravity token usage to microcents (millionths of a cent;
+ * 1 µ¢ = 1e-8 $ — matches the UI's formatMicrocents, which divides by 1e6 to
+ * reach cents). Pricing: Gemini 2.5 Pro standard tier — $1.25/M input,
+ * $10/M output. Cached tokens are billed at $0.3125/M (25% of input price).
+ * A real audit (~1.3M tokens, mostly cached input) lands near 87M µ¢ ≈ $0.87.
  */
 export function computeCostMicrocents(usage: AntigravityUsage): number {
   const input =
@@ -419,22 +400,25 @@ export function computeCostMicrocents(usage: AntigravityUsage): number {
   return Math.round(input * 125 + cached * 31.25 + output * 1000);
 }
 
-/** Tear down a sandbox to stop idle spend. */
-export async function destroyEnvironment(
-  environmentId: string,
+/**
+ * Tear down a finished interaction (releasing its sandbox) to stop idle spend.
+ * The sandbox has no standalone delete endpoint — it is owned by the interaction
+ * lifecycle. Verified live: DELETE /v1beta/interactions/{id} → 200. (The old
+ * `files/environment-<id>` scheme always 400s — that name exceeds the Files API
+ * 40-char id cap.) Takes the INTERACTION id, not the environment id.
+ */
+export async function destroyInteraction(
+  interactionId: string,
   opts: RetryOptions = {},
 ): Promise<void> {
   await withRetry(async () => {
-    const res = await fetch(
-      `${GEMINI_BASE}/files/environment-${environmentId}`,
-      {
-        method: "DELETE",
-        headers: { "x-goog-api-key": apiKey() },
-      },
-    );
+    const res = await fetch(`${GEMINI_BASE}/interactions/${interactionId}`, {
+      method: "DELETE",
+      headers: { "x-goog-api-key": apiKey() },
+    });
     if (!res.ok) {
       throw new Error(
-        `Antigravity destroy ${environmentId} → ${res.status}: ${await res.text()}`,
+        `Antigravity destroy ${interactionId} → ${res.status}: ${await res.text()}`,
       );
     }
   }, opts);
