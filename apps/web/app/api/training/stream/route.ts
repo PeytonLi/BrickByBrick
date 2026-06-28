@@ -7,6 +7,7 @@ import {
   type LossPoint,
   type TrainingRequest,
 } from '@brickbybrick/core'
+import { connectDB, EventModel } from '@brickbybrick/db'
 
 import { demoStreamMetrics } from '../demo-runner'
 
@@ -35,15 +36,52 @@ async function readRequest(request: Request): Promise<TrainingRequest | null> {
 }
 
 async function resolveStreamMetrics(): Promise<StreamMetrics> {
-  // Deterministic, fast stub for e2e/CI — real metrics tail a live Prime job.
+  // Deterministic, fast stub for e2e/CI — real metrics tail a live job.
   if (process.env.BBB_DEMO_MODE === '1') {
     return demoStreamMetrics
   }
 
   const trainerModule = (await import('@brickbybrick/trainer')) as unknown as {
     streamMetrics?: PrimeStreamMetrics
+    resolveTrainingProvider?: () => 'prime' | 'do-gpu'
+    createDOTrainingDeps?: () => {
+      provisionPod: (opts: { name: string }) => { podId: string; ip: string }
+      launchTraining: (
+        ip: string,
+        configPath: string,
+        datasetPath: string,
+      ) => { runId: string }
+      streamMetrics: (
+        ip: string,
+        runId: string,
+        onPoint: (point: LossPoint) => void,
+      ) => Promise<void>
+      terminatePod: (podId: string) => void
+    }
   }
 
+  const provider = trainerModule.resolveTrainingProvider?.() ?? 'prime'
+
+  // --- DigitalOcean GPU Droplet: provision → launch → stream → terminate ---
+  if (provider === 'do-gpu' && typeof trainerModule.createDOTrainingDeps === 'function') {
+    const deps = trainerModule.createDOTrainingDeps()
+    return async (runId, emit) => {
+      emit({ type: 'training_event', status: 'provisioning', instance: runId })
+      const { podId, ip } = deps.provisionPod({ name: `bbb-${runId}` })
+      try {
+        const launched = deps.launchTraining(ip, '/root/train.toml', '/root/dataset.jsonl')
+        emit({ type: 'training_event', status: 'training', instance: launched.runId })
+        await deps.streamMetrics(ip, launched.runId, (loss) => {
+          emit({ type: 'training_event', status: 'training', instance: launched.runId, loss })
+        })
+        emit({ type: 'training_event', status: 'complete', instance: launched.runId })
+      } finally {
+        deps.terminatePod(podId)
+      }
+    }
+  }
+
+  // --- Prime Intellect (default) ---
   if (typeof trainerModule.streamMetrics !== 'function') {
     return demoStreamMetrics
   }
@@ -74,9 +112,25 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      // --- DB persistence (degraded-but-not-broken on failure) -------------
+      let persistSeq: number | null = null
+
+      try {
+        await connectDB()
+        const existing = await EventModel.countDocuments({ runId: body.runId })
+        persistSeq = existing
+      } catch {
+        persistSeq = null
+      }
+
       const emit = (event: AgentEvent) => {
         if (!aborted) {
           controller.enqueue(encoder.encode(formatSSE(event)))
+        }
+        if (persistSeq !== null) {
+          const seq = persistSeq
+          persistSeq++
+          EventModel.insertBatch(body.runId, [event], seq).catch(() => {})
         }
       }
 

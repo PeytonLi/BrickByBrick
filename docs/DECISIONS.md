@@ -40,6 +40,13 @@ These are detailed in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 9. **Crew:** setup → 3 fat worktree agents (TDD) → integration. User chose "fewer, fatter agents" to minimize merge thrash.
 10. **Removed the `agentbox` package** (2026-06-27). It was a vestige of the old GMI-sandbox design; the Antigravity wrapper is just Gemini-key REST calls, so it lives in `packages/inference`. Also dropped unused deps: `@anthropic-ai/sdk`, `openai` (Nebius), `react-dropzone` (no doc ingestion), `shadcn` runtime dep (it's a CLI). Removed a broken `@import "shadcn/tailwind.css"` the scaffold shipped (file never existed) — that had silently broken `next build`.
 
+## DigitalOcean + MongoDB Atlas integration (2026-06-27)
+
+11. **MongoDB Atlas** chosen for managed persistence (`@brickbybrick/db`). Runs, pairs, events, and the task bank persist beyond ephemeral `sessionStorage`. Separate from DO for multi-cloud flexibility. DB writes from the SSE routes are fire-and-forget — a DB outage degrades to an unpersisted stream rather than breaking the loop.
+12. **Gemini primary, DigitalOcean serverless as fallback.** A `FallbackProvider` wraps each solver/embed call and switches to DO (Claude 4.6 Sonnet / Llama 3.3 70B / GTE Large) on 429/5xx, emitting a narration event on the switch. The Gemini primary path is unchanged.
+13. **DO GPU Droplets as an alternative to Prime Intellect**, selected by `BBB_TRAINING_PROVIDER`. Prime remains the default; DO GPU uses `doctl` + SSH for provisioning, dataset transfer, metric streaming, and teardown. Both providers expose the same logical interface.
+14. **DigitalOcean App Platform** for production deployment. `output: 'standalone'` Next.js, multi-stage pnpm-monorepo Dockerfile, port 8080, CD from GitHub via `app.yaml`.
+
 ## Confirmed credentials (per user)
 
 Anthropic ✓ · Gemini ✓ · LiveKit ✓ · Prime Intellect ✓. Antigravity confirmed reachable with the **same Gemini key** (verified against docs). Gemma 4 availability on the Gemini key is the one thing the **setup spike must confirm** (fallback: smallest Gemini Flash variant as "weak").

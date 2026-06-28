@@ -11,6 +11,7 @@ import {
 } from '@brickbybrick/core'
 import { computeUtility, cosineSim, scoreCriteria } from './metrics'
 import { embed as geminiEmbed, generateContent, strongSolver, weakSolver, STRONG_MODEL } from './gemini'
+import type { SolverSet } from './providers/interface'
 import {
   createInteraction,
   extractAuditSteps,
@@ -287,14 +288,18 @@ function toAuditResult(task: VisualTask, steps: AuditStep[], report: ReturnType<
 }
 
 /** Live dependency set: the real Gemini + Antigravity clients. */
-export function defaultDeps(): VisualLoopDeps {
+export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
+  const solver = opts?.solverSet
+
   return {
     challenge: async (config) => {
-      const raw = await generateContent(
-        STRONG_MODEL(),
-        buildChallengerPrompt(config),
-        'Generate one adversarial UI task now.',
-      )
+      const raw = solver
+        ? await solver.generate(solver.strongModel, buildChallengerPrompt(config), 'Generate one adversarial UI task now.')
+        : await generateContent(
+            STRONG_MODEL(),
+            buildChallengerPrompt(config),
+            'Generate one adversarial UI task now.',
+          )
       const parsed = safeJson<unknown>(raw)
       return VisualTaskSchema.parse(parsed)
     },
@@ -324,7 +329,7 @@ export function defaultDeps(): VisualLoopDeps {
       emitNew(steps)
       return toAuditResult(task, steps, parseAuditReport(interaction))
     },
-    embed: geminiEmbed,
+    embed: solver ? solver.embed : geminiEmbed,
     synthesizeRecipe: async (recent) => {
       const raw = await generateContent(
         STRONG_MODEL(),

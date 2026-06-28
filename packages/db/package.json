@@ -1,0 +1,25 @@
+{
+  "name": "@brickbybrick/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo ok"
+  },
+  "dependencies": {
+    "@brickbybrick/core": "workspace:*",
+    "mongoose": "^8.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "mongodb-memory-server": "^10.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

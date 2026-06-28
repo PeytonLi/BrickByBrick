@@ -73,7 +73,9 @@ Full derivations in [`docs/MATH.md`](docs/MATH.md).
 apps/web/            Next.js dashboard (3-section control center)
 packages/core/       Zod schemas + shared contracts (the frozen interface)
 packages/inference/  Gemini clients (strong/weak) + Antigravity wrapper + loop + prompts
-packages/trainer/    Prime Intellect CLI wrapper + dataset export
+                     + DigitalOcean serverless fallback provider
+packages/trainer/    Prime Intellect CLI wrapper + dataset export + DO GPU droplet provider
+packages/db/         MongoDB Atlas persistence (Mongoose models: runs, pairs, events, tasks)
 docs/                Architecture, math, build plan, per-feature briefs, handoff
 ```
 
@@ -85,5 +87,13 @@ cp .env.example .env.local   # fill in GEMINI_API_KEY, LIVEKIT_*, PRIME_API_KEY
 pnpm turbo run build type-check
 pnpm dev
 ```
+
+## Deployment
+
+Deployed on **DigitalOcean App Platform** (containerized Next.js, `output: 'standalone'`)
+with **MongoDB Atlas** for run/pair/event persistence. CD from GitHub via `app.yaml`;
+see [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §6. Inference falls back to DigitalOcean
+serverless models on Gemini 429/5xx, and training can target DO GPU droplets via
+`BBB_TRAINING_PROVIDER=do-gpu`.
 
 > **Status:** scaffolded. Implementation is split across parallel agents — see [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md) to pick up where we left off.

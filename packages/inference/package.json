@@ -13,9 +13,11 @@
   "dependencies": {
     "@brickbybrick/core": "workspace:*",
     "@brickbybrick/trainer": "workspace:*",
-    "@google/genai": "^1.0.0"
+    "@google/genai": "^1.0.0",
+    "openai": "^6.45.0"
   },
   "devDependencies": {
+    "@types/node": "^22",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }
