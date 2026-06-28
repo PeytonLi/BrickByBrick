@@ -1,99 +1,170 @@
 # BrickByBrick
 
-> An autonomous visual-agentic data factory that finds a small model's UI-coding blind spots, turns them into a training set, and LoRA-fine-tunes the model on real GPUs — live.
+> **Find your model's blind spots. Collect them as training data. Fix them on real GPUs. Ship the improvement.**
+>
+> An autonomous visual-agentic pipeline that maps a small model's UI-coding failures, curates them into a training set, and LoRA-fine-tunes the model on H100 GPUs — all live, all autonomous.
 
-## The Problem
+---
 
-Small language models (SLMs) are cheap and fast, but they fail in ways that are invisible to text-based evals. A model can emit React/CSS that **compiles and returns `200 OK`** yet is broken for a human: a layout collision, an off-screen render, a frozen event loop. Static prompt engineering and brute-force web-scraped datasets don't target these specific, *visual* failure modes — so the small model never improves where it actually hurts.
+## What It Does
 
-## The Solution
-
-BrickByBrick is a closed-loop **Recursive Self-Improvement (RSI)** platform. It spends *inference-time compute* to map a target model's exact visual blind spots, programmatically curates a synthetic dataset centred entirely on those failures, and converts it into **permanent weight optimization** via LoRA fine-tuning on decentralized GPU spot nodes. The thesis: a localized 9B model can match frontier performance in a targeted domain at a fraction of the cost.
-
-It extends Meta FAIR's **Autodata** framework (text/compiler verification) into the **visual** domain, using a hosted agent that actually *drives a browser* to verify UI correctness.
-
-## How It Works
+Small models are cheap and fast but fail in ways invisible to text evals. A model can emit React that *compiles* yet overflows on mobile, traps focus in a modal, or freezes on empty state. BrickByBrick finds these failures, collects them, and trains the model to stop making them.
 
 ```
-Built-in UI task bank
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ANTIGRAVITY HOSTED SANDBOX  (Gemini, ephemeral Linux)       │
-│   1. Challenger          → synthesizes a UI assembly task    │
-│   2. Weak Solver (Gemma 4)→ writes draft React/CSS           │
-│   3. Visual Auditor       → serves :3000, opens a browser,   │
-│      (Flash Computer Use)   resizes to mobile, injects fringe │
-│                             data, stress-clicks → screenshots │
-│   4. Strong Solver (Gemini│ 3.5 Pro) → produces the fix       │
-│      → re-audit: fix must PASS, weak must FAIL                │
-└───────────────────────────┬─────────────────────────────────┘
-                            ▼
-              Structured JSONL training pairs
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  PRIME INTELLECT SPOT NODE                                   │
-│   Freeze base Gemma 4 ──► train custom LoRA adapter          │
-└─────────────────────────────────────────────────────────────┘
+You say:  "a model good at React responsive design"
+                |
+                v
+    Four AI agents collaborate in real time
+    +-----------+    +------------+    +----------+    +-----------+
+    | Challenger| -> | Weak Solver| -> | Auditor  | -> | Strong    |
+    | invents   |    | drafts     |    | finds    |    | Solver    |
+    | UI tasks  |    | buggy code |    | bugs in  |    | fixes     |
+    |           |    |            |    | browser  |    | the code  |
+    +-----------+    +------------+    +----------+    +-----------+
+                                                             |
+                                              pair committed (utility > 0.4)
+                                                             |
+                                                             v
+                                              +-----------------------+
+                                              |  H100 GPU QLoRA       |
+                                              |  1,515 pairs x 3 epochs|
+                                              |  adapter on HF Hub    |
+                                              +-----------------------+
 ```
 
-A pair is committed to the dataset **only if** the strong model passes the visual audit and the weak model fails it (the *discriminative gap*), and only if it's not a near-duplicate of a recent failure. Every N pairs, a Recipe Synthesizer mutates the generation config to chase whichever UI mechanism the weak model keeps failing.
+---
 
-The dashboard tells the story live: a WebRTC **audio** track narrates the agent's thoughts, a **screenshot stream** shows the browser being driven in real time, an **adversarial matrix** shows pairs filtering in/out by their gap score, and a **compute console** streams the real LoRA training loss curve.
+## 60-Second Demo
+
+| Time | What |
+|------|------|
+| :00 | **[Training page](https://brickbybrick-xxxxx.ondigitalocean.app/training)** — Loss dropped 6.17 → 5.68. 1,515 pairs, 16 mechanisms, 25 min on H100, $0.98. |
+| :10 | **[Live Demo](https://brickbybrick-xxxxx.ondigitalocean.app)** — Type intent → Derive plan → Start loop |
+| :20 | Four agents collaborate: Challenger invents, Weak drafts, Auditor finds bugs with real browser screenshots, Strong fixes |
+| :40 | **Two-way voice** — Click Connect Audio, speak to steer the AI through LiveKit |
+| :50 | Training runs on H100 GPUs, adapter ships to Hugging Face Hub. Deployed on DigitalOcean App Platform. |
+
+---
+
+## Live Training Results
+
+Fine-tuned **Gemma 4 26B** (4-bit QLoRA, r=16) on 1,515 mechanism-specific UI pairs.
+
+| Metric | Value |
+|--------|-------|
+| Initial loss | 6.17 |
+| Final loss | 5.68 |
+| Best loss | 5.51 |
+| Reduction | 7.9% |
+| Epochs | 3 (570 steps) |
+| GPU | H100 80GB @ $2.35/hr |
+| Duration | ~25 min |
+| Cost | $0.98 |
+| Adapter | [peytonali/gemma-bbb-lora](https://huggingface.co/peytonali/gemma-bbb-lora) |
+
+**16 mechanisms** in the training set: responsive-grid (110), modal-focus-trap (110), form-validation (90), dropdown-menu (80), toast-system, carousel, tabs, accordion, infinite-scroll, drag-drop, tooltip, search-autocomplete, data-table, stepper-wizard, pagination, skeleton-loader.
+
+View the full loss chart and configuration at `/training`.
+
+---
 
 ## Architecture
 
-Everything runs on **one `GEMINI_API_KEY`** (orchestrator + both solvers + computer-use), plus **LiveKit** (audio) and **Prime Intellect** (training).
+Everything runs on **one `GEMINI_API_KEY`** (orchestrator + both solvers + computer-use), plus **LiveKit** (audio narration) and **Prime Intellect** (GPU training).
 
 | Layer | Tech |
 |---|---|
 | Monorepo | pnpm 10 + Turborepo |
-| Frontend | Next.js 15 (App Router, React 19), Tailwind v4, shadcn/ui (base-nova) |
-| Live media | LiveKit (audio + `AgentAudioVisualizer`) + SSE screenshot stream |
-| Orchestrator | Google **Antigravity Managed Agents** — `POST /v1beta/interactions` |
-| Visual audit | **Gemini 3.5 Flash Computer Use** (driven inside the sandbox) |
-| Strong solver | **Gemini 3.5 Pro** |
-| Weak/target | **Gemma 4 9B** |
-| Narration | **Gemini Live** → LiveKit audio |
-| Training | **Prime Intellect** `prime` CLI (LoRA on GPU spot nodes) |
+| Frontend | Next.js 15 (App Router, React 19), Tailwind v4, shadcn/ui |
+| Live media | LiveKit (two-way audio) + SSE screenshot stream |
+| Orchestrator | Google **Antigravity Managed Agents** |
+| Visual audit | Gemini Flash Computer Use (real Chromium sandbox) |
+| Strong solver | Gemini 3.5 Pro |
+| Weak/target | Gemma 4 26B |
+| Narration | Gemini Live → LiveKit audio bridge |
+| Training | Prime Intellect `prime` CLI (QLoRA on GPU spot nodes) |
+| Persistence | MongoDB Atlas (runs, pairs, events) |
+| Deployment | DigitalOcean App Platform (Dockerfile, `output: 'standalone'`) |
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the real API request/response shapes and the full event contract.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full event contract and API shapes.
 
-## The Math
-
-- **Discriminative reward gap** — a pair is kept iff `𝒰(T) = S(M_strong) − S(M_weak) ≥ τ`, `τ ∈ [0.4, 1.0]`, where `S` scores criteria passing under the visual audit.
-- **LoRA forward pass** — base weights `W₀` frozen; `h = W₀x + (α/r)·BAx`, `r ≪ min(d,k)` → ~70% less memory, no catastrophic forgetting.
-- **Diversity filter** — reject a new failure if `cos(E_new, E_j) > 0.82` against any recent failure embedding.
-
-Full derivations in [`docs/MATH.md`](docs/MATH.md).
+---
 
 ## Repo Layout
 
 ```
-apps/web/            Next.js dashboard (3-section control center)
-packages/core/       Zod schemas + shared contracts (the frozen interface)
-packages/inference/  Gemini clients (strong/weak) + Antigravity wrapper + loop + prompts
-                     + DigitalOcean serverless fallback provider
-packages/trainer/    Prime Intellect CLI wrapper + dataset export + DO GPU droplet provider
-packages/db/         MongoDB Atlas persistence (Mongoose models: runs, pairs, events, tasks)
-docs/                Architecture, math, build plan, per-feature briefs, handoff
+apps/web/            Next.js dashboard (sidebar nav + 3 sections)
+                      ├── Live Demo    — visual loop control center
+                      ├── Training     — loss chart + config + mechanisms
+                      └── Models       — HF model browser + eval
+packages/core/       Zod schemas + shared contracts (frozen interface)
+packages/inference/  Gemini clients + Antigravity wrapper + loop engine + prompts
+packages/trainer/    Prime CLI wrapper + dataset export + QLoRA training script
+packages/db/         MongoDB Atlas persistence (Mongoose: runs, pairs, events)
+docs/                Architecture, math, build plan, decisions, handoff
+scripts/demo/        Full training launcher, poll scripts, inference tester
 ```
+
+---
 
 ## Getting Started
 
 ```bash
 pnpm install
-cp .env.example .env.local   # fill in GEMINI_API_KEY, LIVEKIT_*, PRIME_API_KEY
+cp .env.example .env.local   # fill in GEMINI_API_KEY, LIVEKIT_*, PRIME_API_KEY, HF_TOKEN
 pnpm turbo run build type-check
-pnpm dev
+pnpm dev                      # opens http://localhost:3000
 ```
+
+### Required env vars
+
+| Variable | Purpose |
+|----------|---------|
+| `GEMINI_API_KEY` | Powers all AI agents (Challenger, solvers, auditor, narration) |
+| `LIVEKIT_URL` | WebRTC audio for narration + two-way voice |
+| `LIVEKIT_API_KEY` | LiveKit authentication |
+| `LIVEKIT_API_SECRET` | LiveKit token signing |
+| `PRIME_API_KEY` | GPU pod provisioning |
+| `HF_TOKEN` | Hugging Face model download + adapter push |
+| `MONGODB_ATLAS_URI` | Run/pair persistence (optional — loop works without it) |
+
+---
 
 ## Deployment
 
-Deployed on **DigitalOcean App Platform** (containerized Next.js, `output: 'standalone'`)
-with **MongoDB Atlas** for run/pair/event persistence. CD from GitHub via `app.yaml`;
-see [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §6. Inference falls back to DigitalOcean
-serverless models on Gemini 429/5xx, and training can target DO GPU droplets via
-`BBB_TRAINING_PROVIDER=do-gpu`.
+Deployed on **DigitalOcean App Platform** via `app.yaml`:
 
-> **Status:** ~90% built (2026-06-28). Core contracts frozen; engine loop, Antigravity/Gemini clients, trainer (Prime/DO GPU + HF Hub push), MongoDB persistence, 3-section dashboard, narration bridge, loop hardening (sandbox teardown, live cost, sentinel validation), and closed-loop UI (one-click loop→training→metrics) all implemented and unit-tested (193 tests green, 15/15 turbo tasks). Seed dataset committed (~60 pairs). Remaining: live rehearsal (gated by `BBB_ALLOW_PAID_REHEARSAL=1`). See [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md).
+- Containerized Next.js (`output: 'standalone'`)
+- Autodeploy from GitHub on push to `main`
+- MongoDB Atlas for persistence
+- LiveKit Cloud for audio
+- Linux glibc Docker image — full two-way voice works in production
+
+```bash
+# From your machine (GPU training requires prime CLI):
+BBB_ALLOW_PAID_REHEARSAL=1 pnpm tsx scripts/demo/full-train.ts
+```
+
+See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for operational details.
+
+---
+
+## Status
+
+**~95% built** (2026-06-28). All core systems implemented and tested (192 tests green):
+
+- ✅ Visual loop (Challenger → Weak → Audit → Strong)
+- ✅ Antigravity sandbox with real browser screenshots
+- ✅ Quality gate (utility threshold + diversity filter)
+- ✅ 1,515-pair seed dataset (16 mechanisms)
+- ✅ QLoRA training on H100 (detached mode, epochs, cosine LR)
+- ✅ HF Hub push (peytonali/gemma-bbb-lora)
+- ✅ LiveKit two-way audio (server bridge + mic → Gemini)
+- ✅ MongoDB persistence (runs, pairs, events)
+- ✅ DigitalOcean deployment (Dockerfile + app.yaml)
+- ✅ Training results dashboard (loss chart + mechanism breakdown)
+- ✅ Sidebar navigation (Live Demo / Training / Models)
+
+Remaining: before/after model eval with vLLM serving.
+
+See [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md).
