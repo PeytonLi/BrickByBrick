@@ -19,10 +19,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={cn("dark", "font-sans", geist.variable)}>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+      <body className="min-h-screen bg-[#090a0d] text-foreground antialiased">
         <TooltipProvider>
           <Nav />
-          {children}
+          <main className="ml-56">{children}</main>
         </TooltipProvider>
       </body>
     </html>
