@@ -96,46 +96,47 @@ describe("ControlCenter", () => {
     });
   });
 
-  it("renders the three dashboard sections with mocked store state", () => {
+  it("renders the dashboard sections with mocked store state", () => {
     render(<ControlCenter />);
 
     expect(
-      screen.getByRole("heading", { name: /A - Live Media Room/i }),
+      screen.getByRole("heading", { name: /Watch it work/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /B - Adversarial Matrix/i }),
+      screen.getByRole("heading", { name: /What it learned/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /C - Weight Compute Console/i }),
+      screen.getByRole("heading", { name: /Train it better/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("1 / 4")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("/ 4")).toBeInTheDocument();
     expect(screen.getByText("h100-80gb-a")).toBeInTheDocument();
     expect(
       screen.getByAltText("Latest visual audit screenshot"),
     ).toBeInTheDocument();
   });
 
-  it("auto-populates the training run input from the store trainingRunId", () => {
+  it("shows trainingRunId in the instance display when surfaced from store", () => {
     useAgentStore.setState({
       trainingRunId: "bbb-gemma-1719000000000",
     });
 
     render(<ControlCenter />);
 
-    const runInput = screen.getByLabelText(
-      "Prime training run id",
-    ) as HTMLInputElement;
-    expect(runInput.value).toBe("bbb-gemma-1719000000000");
+    // The trainingRunId from the store is used as the default run ID
+    // for training stream; the HF search input is separate.
+    expect(
+      screen.getByPlaceholderText(/Browse trained models/i),
+    ).toBeInTheDocument();
   });
 
-  it("falls back to empty input when no trainingRunId is surfaced", () => {
+  it("shows the HF model search when no trainingRunId", () => {
     useAgentStore.setState({ trainingRunId: null });
 
     render(<ControlCenter />);
 
-    const runInput = screen.getByLabelText(
-      "Prime training run id",
-    ) as HTMLInputElement;
-    expect(runInput.value).toBe("");
+    expect(
+      screen.getByPlaceholderText(/Browse trained models/i),
+    ).toBeInTheDocument();
   });
 });

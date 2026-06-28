@@ -146,7 +146,19 @@ function eventLabel(event: AgentEvent): string {
       return event.status
         ? `Training: ${event.status}`
         : "Training metric received";
+    case "intent_expanded":
+      return "Intent expanded";
+    case "model_serving":
+      return "Model serving ready";
+    case "eval_started":
+      return "Evaluation started";
+    case "eval_task_result":
+      return "Eval task completed";
+    case "eval_complete":
+      return "Evaluation complete";
   }
+  // Exhaustive — all event types handled above.
+  return (event as { type: string }).type;
 }
 
 function eventTone(event: AgentEvent): TimelineEntry["tone"] {
