@@ -96,4 +96,4 @@ see [`docs/RUNBOOK.md`](docs/RUNBOOK.md) §6. Inference falls back to DigitalOce
 serverless models on Gemini 429/5xx, and training can target DO GPU droplets via
 `BBB_TRAINING_PROVIDER=do-gpu`.
 
-> **Status:** scaffolded. Implementation is split across parallel agents — see [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md) to pick up where we left off.
+> **Status:** ~80% built. Core contracts frozen; engine loop, Antigravity/Gemini clients, trainer (Prime + DO GPU), MongoDB persistence, 3-section dashboard, and narration bridge all implemented and unit-tested. Seed dataset committed (~60 pairs). Remaining: loop hardening, closed-loop UI, live rehearsal. See [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md).
