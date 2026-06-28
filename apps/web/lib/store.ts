@@ -6,6 +6,8 @@ import type {
   AgentEventType,
   AuditStep,
   Defect,
+  EvalReport,
+  EvalTaskResult,
   GenerationConfig,
   LossPoint,
   PairRejectReason,
@@ -56,6 +58,12 @@ export interface AgentStoreSnapshot {
   timeline: TimelineEntry[];
   lastEventType: AgentEventType | null;
   pulse: PulseState;
+  derivedConfig: Partial<GenerationConfig> | null;
+  sampleTitles: string[];
+  serveInfo: { url: string; expiresAt: string; baseModel: string } | null;
+  evalRunning: boolean;
+  evalResults: EvalTaskResult[];
+  evalReport: EvalReport | null;
 }
 
 interface AgentStoreActions {
@@ -98,6 +106,12 @@ export const initialAgentState: AgentStoreSnapshot = {
   timeline: [],
   lastEventType: null,
   pulse: null,
+  derivedConfig: null,
+  sampleTitles: [],
+  serveInfo: null,
+  evalRunning: false,
+  evalResults: [],
+  evalReport: null,
 };
 
 function screenshotSrc(base64: string): string {
@@ -256,6 +270,27 @@ export function reduceAgentState(
         training: updateTraining(state.training, event),
         trainingRunId: event.instance ?? state.trainingRunId,
       };
+    case "intent_expanded":
+      return {
+        ...base,
+        derivedConfig: event.config,
+        sampleTitles: event.sample_titles,
+      };
+    case "model_serving":
+      return {
+        ...base,
+        serveInfo: {
+          url: event.url,
+          expiresAt: event.expires_at,
+          baseModel: event.base_model,
+        },
+      };
+    case "eval_started":
+      return { ...base, evalRunning: true, evalResults: [], evalReport: null };
+    case "eval_task_result":
+      return { ...base, evalResults: [...state.evalResults, event.result] };
+    case "eval_complete":
+      return { ...base, evalRunning: false, evalReport: event.report };
   }
 }
 
@@ -281,6 +316,12 @@ function persistedSnapshot(state: AgentStore): AgentStoreSnapshot {
     timeline: state.timeline,
     lastEventType: state.lastEventType,
     pulse: state.pulse,
+    derivedConfig: state.derivedConfig,
+    sampleTitles: state.sampleTitles,
+    serveInfo: state.serveInfo,
+    evalRunning: state.evalRunning,
+    evalResults: state.evalResults,
+    evalReport: state.evalReport,
   };
 }
 

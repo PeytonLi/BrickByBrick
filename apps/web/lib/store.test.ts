@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import type { AgentEvent, TrainingPair, VisualTask } from "@brickbybrick/core";
 
@@ -144,5 +144,52 @@ describe("reduceAgentState", () => {
 
     expect(second.trainingRunId).toBe("bbb-gemma-1719000000000");
     expect(second.training.loss).toEqual([{ step: 1, epoch: 0.2, loss: 2.1 }]);
+  });
+});
+
+describe("reduceAgentState — intent_expanded (Feature A)", () => {
+  it("records derivedConfig and sample titles", () => {
+    const s = reduceAgentState(initialAgentState, {
+      type: "intent_expanded",
+      config: {
+        intent: "react",
+        framework: "react",
+        challenger_weights: { "responsive-card-grid": 3 },
+      },
+      sample_titles: ["A", "B"],
+    });
+    expect(s.derivedConfig?.framework).toBe("react");
+    expect(s.sampleTitles).toEqual(["A", "B"]);
+  });
+});
+
+describe("reduceAgentState — eval + serving (Feature C)", () => {
+  it("captures serveInfo and eval results", () => {
+    let s = reduceAgentState(initialAgentState, {
+      type: "model_serving",
+      url: "http://x/v1",
+      expires_at: "z",
+      pod_id: "p",
+      base_model: "g",
+    });
+    expect(s.serveInfo?.url).toBe("http://x/v1");
+    s = reduceAgentState(s, { type: "eval_started", k: 2 });
+    expect(s.evalRunning).toBe(true);
+    s = reduceAgentState(s, {
+      type: "eval_complete",
+      report: {
+        runId: "r",
+        k: 2,
+        base_model: "g",
+        tuned_model: "tuned",
+        wins: 2,
+        ties: 0,
+        losses: 0,
+        mean_score_delta: 0.4,
+        tasks: [],
+      },
+    });
+    expect(s.evalRunning).toBe(false);
+    expect(s.evalReport?.wins).toBe(2);
   });
 });

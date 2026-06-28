@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { LiveMediaRoom } from "@/components/dashboard/live-media-room";
+import { ModelReadyPanel } from "@/components/dashboard/model-ready-panel";
 import { AdversarialMatrix } from "@/components/dashboard/adversarial-matrix";
 import { WeightComputeConsole } from "@/components/dashboard/weight-compute-console";
 import { useAgentStore } from "@/lib/store";
@@ -47,6 +48,10 @@ export function ControlCenter() {
   const setTargetPairs = useAgentStore((state) => state.setTargetPairs);
   const consumeEvent = useAgentStore((state) => state.consumeEvent);
   const reset = useAgentStore((state) => state.reset);
+  const [intent, setIntent] = useState("");
+  const [deriving, setDeriving] = useState(false);
+  const derivedConfig = useAgentStore((s) => s.derivedConfig);
+  const sampleTitles = useAgentStore((s) => s.sampleTitles);
 
   const [visualState, setVisualState] = useState<StreamState>("idle");
   const [trainingState, setTrainingState] = useState<StreamState>("idle");
@@ -61,6 +66,29 @@ export function ControlCenter() {
   // Use the trainingRunId surfaced from the loop; fall back to manual input.
   const trainingRunId = snapshot.trainingRunId || manualRunId;
 
+  async function derivePlan() {
+    if (!intent.trim()) return;
+    setDeriving(true);
+    try {
+      const res = await fetch("/api/intent/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent }),
+      });
+      const data = (await res.json()) as {
+        config: Record<string, unknown>;
+        sample_titles: string[];
+      };
+      consumeEvent({
+        type: "intent_expanded",
+        config: data.config,
+        sample_titles: data.sample_titles,
+      });
+    } finally {
+      setDeriving(false);
+    }
+  }
+
   async function runVisualLoop() {
     visualAbortRef.current?.abort();
     const controller = new AbortController();
@@ -73,7 +101,9 @@ export function ControlCenter() {
         signal: controller.signal,
         init: {
           method: "POST",
-          body: JSON.stringify({ config: { max_pairs: targetPairs } }),
+          body: JSON.stringify({
+            config: { ...(derivedConfig ?? {}), max_pairs: targetPairs },
+          }),
         },
         onEvent: consumeEvent,
       });
@@ -225,6 +255,55 @@ export function ControlCenter() {
         </div>
       </section>
 
+      <section className="flex flex-col gap-3 border-b border-white/10 pb-5">
+        <label className="text-sm text-zinc-300">
+          What should the model get good at?
+        </label>
+        <div className="flex gap-2">
+          <input
+            className="h-9 flex-1 rounded-md border border-white/10 bg-black px-3 text-sm text-white outline-none focus:border-emerald-300"
+            placeholder="e.g. a model good at responsive React layouts"
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            aria-label="Model intent"
+          />
+          <Button onClick={derivePlan} disabled={deriving || !intent.trim()}>
+            {deriving ? <Loader2 className="size-4 animate-spin" /> : null}{" "}
+            Derive plan
+          </Button>
+        </div>
+        {derivedConfig ? (
+          <div className="rounded-md border border-white/10 bg-white/[0.02] p-3 text-xs text-zinc-300">
+            <div>
+              Framework:{" "}
+              <span className="text-white">
+                {derivedConfig.framework ?? "—"}
+              </span>
+            </div>
+            <div className="mt-1">
+              Framing: {derivedConfig.domain_framing ?? "—"}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {Object.entries(derivedConfig.challenger_weights ?? {}).map(
+                ([m, w]) => (
+                  <span
+                    key={m}
+                    className="rounded border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5"
+                  >
+                    {m} ·{String(w)}
+                  </span>
+                ),
+              )}
+            </div>
+            {sampleTitles.length ? (
+              <div className="mt-2 text-zinc-400">
+                e.g. {sampleTitles.join(" · ")}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
       <LiveMediaRoom
         snapshot={snapshot}
         liveKitToken={liveKitToken}
@@ -236,6 +315,8 @@ export function ControlCenter() {
         <AdversarialMatrix snapshot={snapshot} />
         <WeightComputeConsole snapshot={snapshot} />
       </div>
+
+      <ModelReadyPanel />
     </main>
   );
 }
