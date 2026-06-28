@@ -1,6 +1,6 @@
-export { exportDataset } from './dataset'
-export { buildTrainingConfig } from './config'
-export type { TrainingConfigOpts } from './config'
+export { exportDataset } from "./dataset";
+export { buildTrainingConfig } from "./config";
+export type { TrainingConfigOpts } from "./config";
 export {
   provisionPod,
   launchTraining,
@@ -11,7 +11,8 @@ export {
   waitForPodSsh,
   runGemmaLoraTraining,
   createPrimeTrainingDeps,
-} from './prime'
+  serveAdapter,
+} from "./prime";
 export type {
   ProvisionPodOpts,
   PodStatus,
@@ -20,10 +21,16 @@ export type {
   GemmaLoraTrainingCallbacks,
   GemmaLoraTrainingResult,
   PrimeTrainingDeps,
-} from './prime'
+  ServeAdapterOpts,
+  ServeHandle,
+} from "./prime";
 
 export {
   resolveTrainingProvider,
   createDOTrainingDeps,
-} from './providers/index'
-export type { TrainingProvider, DOTrainingDeps, DOProvisionPodOpts } from './providers/index'
+} from "./providers/index";
+export type {
+  TrainingProvider,
+  DOTrainingDeps,
+  DOProvisionPodOpts,
+} from "./providers/index";

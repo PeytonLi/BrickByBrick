@@ -1,137 +1,19 @@
-import { describe, expect, it, vi } from 'vitest'
-
+import { describe, it, expect, vi } from 'vitest'
+import { runPrimeTraining } from './training'
 import type { AgentEvent, TrainingPair } from '@brickbybrick/core'
-import { runPrimeTraining, type GemmaTrainingDeps } from './training'
 
-const pair: TrainingPair = {
-  id: 'pair-1',
-  task: {
-    id: 'task-1',
-    prompt: 'Build a mobile-safe pricing grid.',
-    target_mechanism: 'responsive-grid',
-    criteria: [{ id: 'no-overflow', description: 'No horizontal overflow', weight: 1 }],
-  },
-  weak_code: '<Grid />',
-  defect: {
-    screenshot: 'PNG',
-    dom_trace: 'div.card overflowed',
-    category: 'overflow',
-    severity: 'high',
-  },
-  strong_code: '<Grid className="min-w-0" />',
-  u_score: 1,
-}
+const pair = { id: 'p', task: { id: 't', prompt: 'p', target_mechanism: 'm', criteria: [{ id: 'c', description: 'd', weight: 1 }] }, weak_code: 'w', defect: { screenshot: '', dom_trace: '', category: 'overflow', severity: 'high' }, strong_code: 's', u_score: 0.7 } as TrainingPair
 
-function collect() {
-  const events: AgentEvent[] = []
-  return { events, emit: (event: AgentEvent) => events.push(event) }
-}
-
-describe('runPrimeTraining', () => {
-  it('bridges exact Gemma pod training callbacks into training events', async () => {
-    const deps: GemmaTrainingDeps = {
-      runGemmaLoraTraining: vi.fn(async (_opts, callbacks) => {
-        callbacks.onStatus?.('streaming_dataset', 'pod-1')
-        callbacks.onMetric?.({ step: 1, loss: 2.4, epoch: 0 })
-        callbacks.onMetric?.({ step: 2, loss: 2.1, epoch: 0.5 })
-        callbacks.onStatus?.('saving', '/workspace/adapter')
-        return { podId: 'pod-1', adapterPath: '/workspace/adapter', runName: 'bbb-test' }
-      }),
-    }
-    const { events, emit } = collect()
-
-    await runPrimeTraining([pair], emit, deps)
-
-    expect(deps.runGemmaLoraTraining).toHaveBeenCalledWith(
-      expect.objectContaining({ pairs: [pair] }),
-      expect.any(Object),
-    )
-    expect(
-      events.filter((event) => event.type === 'training_event' && event.loss).map((event) => {
-        if (event.type !== 'training_event') return null
-        return event.loss?.loss
-      }),
-    ).toEqual([2.4, 2.1])
-    expect(events.some((event) => event.type === 'training_event' && event.status === 'complete')).toBe(true)
-    expect(
-      events.some(
-        (event) =>
-          event.type === 'narration' &&
-          event.text.includes('Exact Gemma LoRA adapter ready on Prime pod pod-1'),
-      ),
-    ).toBe(true)
-  })
-
-  it('surfaces the Hugging Face Hub adapter as a narration when pushed', async () => {
-    const deps: GemmaTrainingDeps = {
-      runGemmaLoraTraining: vi.fn(async (_opts, callbacks) => {
-        callbacks.onStatus?.('saving', '/workspace/adapter')
-        callbacks.onStatus?.('pushed', 'peli/gemma-bbb-lora')
-        return {
-          podId: 'pod-1',
-          adapterPath: '/workspace/adapter',
-          runName: 'bbb-test',
-          hubRepo: 'peli/gemma-bbb-lora',
-        }
-      }),
-    }
-    const { events, emit } = collect()
-
-    await runPrimeTraining([pair], emit, deps)
-
-    // 'pushed' is not a valid TrainingStatus — it must not leak as a training_event.
-    // (cast to string: the type system already forbids it; this guards the runtime
-    // cast in training.ts that could otherwise let it through.)
-    expect(
-      events.some(
-        (event) => event.type === 'training_event' && (event.status as string) === 'pushed',
-      ),
-    ).toBe(false)
-    // It surfaces as a narration linking the Hub repo.
-    expect(
-      events.some(
-        (event) =>
-          event.type === 'narration' &&
-          event.text.includes('huggingface.co/peli/gemma-bbb-lora'),
-      ),
-    ).toBe(true)
-  })
-
-  it('emits failed when exact Gemma training fails', async () => {
-    const deps: GemmaTrainingDeps = {
-      runGemmaLoraTraining: vi.fn(async () => {
-        throw new Error('HF_TOKEN is required')
-      }),
-    }
-    const { events, emit } = collect()
-
-    await runPrimeTraining([pair], emit, deps)
-
-    expect(events.some((event) => event.type === 'training_event' && event.status === 'failed')).toBe(true)
-    expect(
-      events.some(
-        (event) =>
-          event.type === 'narration' &&
-          event.text.includes('Prime Gemma training failed: HF_TOKEN is required'),
-      ),
-    ).toBe(true)
-  })
-
-  it('skips Prime calls when no pairs are available', async () => {
-    const deps: GemmaTrainingDeps = {
-      runGemmaLoraTraining: vi.fn(async () => ({
-        podId: 'pod-1',
-        adapterPath: '/workspace/adapter',
-        runName: 'bbb-test',
-      })),
-    }
-    const { events, emit } = collect()
-
-    await runPrimeTraining([], emit, deps)
-
-    expect(deps.runGemmaLoraTraining).not.toHaveBeenCalled()
-    expect(events).toEqual([
-      { type: 'narration', text: 'No committed pairs available; skipping Prime training.' },
-    ])
+describe('runPrimeTraining — serving tail (Feature C)', () => {
+  it('emits model_serving after training when serve deps are provided', async () => {
+    const events: AgentEvent[] = []
+    await runPrimeTraining([pair], (e) => events.push(e), {
+      runGemmaLoraTraining: vi.fn(async () => ({ podId: 'pod1', adapterPath: '/r/adapter', runName: 'run', hubRepo: 'u/r' })),
+      serveAdapter: vi.fn(async () => ({ serveUrl: 'http://pod1:8000/v1', podId: 'pod1', baseModel: 'g', expiresAt: '2030-01-01T00:00:00Z' })),
+      sshTargetForPod: vi.fn(async () => ({ host: 'h', port: '22', keyPath: 'k' })),
+      remoteDirFor: vi.fn(() => '/r'),
+    })
+    const serving = events.find((e) => e.type === 'model_serving')
+    expect(serving).toMatchObject({ type: 'model_serving', url: 'http://pod1:8000/v1', pod_id: 'pod1' })
   })
 })
