@@ -9,8 +9,8 @@ Everything that "thinks" runs on a single `GEMINI_API_KEY`:
 | Role | Model / service | Auth |
 |---|---|---|
 | Orchestrator + in-sandbox visual auditor | Antigravity Managed Agent (`antigravity-preview-05-2026`) | `GEMINI_API_KEY` |
-| Strong solver (the fix) | Gemini 3.5 Pro | `GEMINI_API_KEY` |
-| Weak / target solver | Gemma 4 9B | `GEMINI_API_KEY` |
+| Strong solver (the fix) | Gemini 3.1 Pro | `GEMINI_API_KEY` |
+| Weak / target solver | Gemma 4 26B | `GEMINI_API_KEY` |
 | Browser control | Gemini 3.5 Flash Computer Use (June 24 2026: native to Flash) | `GEMINI_API_KEY` |
 | Spoken narration | Gemini Live → LiveKit audio | `GEMINI_API_KEY` + LiveKit |
 | Live audio transport | LiveKit Cloud | `LIVEKIT_URL/API_KEY/API_SECRET` |

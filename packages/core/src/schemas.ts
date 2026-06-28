@@ -116,7 +116,7 @@ export const TrainingPairSchema = z.object({
   /** the weak model's (Gemma 4) draft that failed the audit */
   weak_code: z.string(),
   defect: DefectSchema,
-  /** the strong model's (Gemini 3.5 Pro) fix that passed the audit */
+  /** the strong model's (Gemini 3.1 Pro) fix that passed the audit */
   strong_code: z.string(),
   /** 𝒰(T) = S(strong) − S(weak), in [0,1] */
   u_score: z.number().min(0).max(1),

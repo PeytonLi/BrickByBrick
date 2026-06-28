@@ -22,7 +22,7 @@ A pair is committed **iff**:
 𝒰(T) ≥ τ ,   τ ∈ [0.4, 1.0]
 ```
 
-In practice: the weak model (Gemma 4) must **fail** the visual audit and the strong model (Gemini 3.5 Pro) fix must **pass** it. If the weak model already passes, the example yields no learning signal and is discarded (`pair_rejected: too_easy`).
+In practice: the weak model (Gemma 4) must **fail** the visual audit and the strong model (Gemini 3.1 Pro) fix must **pass** it. If the weak model already passes, the example yields no learning signal and is discarded (`pair_rejected: too_easy`).
 
 ## 2. LoRA forward pass
 

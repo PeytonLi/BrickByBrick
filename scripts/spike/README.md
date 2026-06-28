@@ -5,7 +5,7 @@ agents (engine / infra / ui). This is the main de-risking lever for the pure-liv
 no-fallback demo. All five must pass.
 
 ```bash
-node scripts/spike/gemini.mjs        # (b)(c) Gemini 3.5 Pro + Gemma 4 respond
+node scripts/spike/gemini.mjs        # (b)(c) Gemini 3.1 Pro + Gemma 4 respond
 node scripts/spike/antigravity.mjs   # (a)  Antigravity sandbox + screenshot steps  ← HARD GATE
 node scripts/spike/livekit.mjs       # (e)  LiveKit token mint
 bash  scripts/spike/prime.sh         # (d)  prime CLI authed (+ <run-id> to capture metrics)

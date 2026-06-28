@@ -79,7 +79,7 @@ Everything runs on **one `GEMINI_API_KEY`** (orchestrator + both solvers + compu
 | Live media | LiveKit (two-way audio) + SSE screenshot stream |
 | Orchestrator | Google **Antigravity Managed Agents** |
 | Visual audit | Gemini Flash Computer Use (real Chromium sandbox) |
-| Strong solver | Gemini 3.5 Pro |
+| Strong solver | Gemini 3.1 Pro |
 | Weak/target | Gemma 4 26B |
 | Narration | Gemini Live → LiveKit audio bridge |
 | Training | Prime Intellect `prime` CLI (QLoRA on GPU spot nodes) |
