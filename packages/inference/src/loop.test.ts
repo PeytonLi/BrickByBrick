@@ -14,6 +14,7 @@ import {
   runVisualLoop,
   makeDiff,
   defaultDeps,
+  buildChallengerPrompt,
   type VisualLoopDeps,
   type AuditResult,
 } from "./loop";
@@ -461,5 +462,23 @@ describe("WP-2 — cost emission contract (Finding G)", () => {
     // validated by the schema + the computeCostMicrocents unit tests in
     // antigravity.test.ts.
     expect(true).toBe(true);
+  });
+});
+
+describe("buildChallengerPrompt — intent steering (Feature A)", () => {
+  it("is unchanged when no intent fields are set", () => {
+    const p = buildChallengerPrompt(GenerationConfigSchema.parse({}));
+    expect(p).not.toMatch(/Target domain:/);
+    expect(p).not.toMatch(/framework/i);
+  });
+  it("injects domain_framing and framework when present", () => {
+    const p = buildChallengerPrompt(
+      GenerationConfigSchema.parse({
+        domain_framing: "React dashboards",
+        framework: "react",
+      }),
+    );
+    expect(p).toMatch(/Target domain: React dashboards/);
+    expect(p).toMatch(/react framework/);
   });
 });

@@ -289,8 +289,12 @@ export const runVisualLoop = async (
 /* setup spike's real fixture.                                         */
 /* ------------------------------------------------------------------ */
 
-function buildChallengerPrompt(config: GenerationConfig): string {
+export function buildChallengerPrompt(config: GenerationConfig): string {
   const parts = [CHALLENGER_SYSTEM];
+  if (config.domain_framing)
+    parts.push(`Target domain: ${config.domain_framing}`);
+  if (config.framework)
+    parts.push(`Implement every task for the ${config.framework} framework.`);
   if (config.focus_mechanism) {
     parts.push(
       `Focus exclusively on the UI mechanism: ${config.focus_mechanism}.`,
@@ -393,14 +397,22 @@ export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
       // Capture the interaction id as early as the stream reveals it so a run
       // that throws mid-stream still gets torn down (teardown keys on it).
       let interactionId = "";
-      const captureId = (frame: { interaction?: { id?: string }; interaction_id?: string }) => {
+      const captureId = (frame: {
+        interaction?: { id?: string };
+        interaction_id?: string;
+      }) => {
         const id = frame.interaction?.id ?? frame.interaction_id;
         if (id && !interactionId) interactionId = id;
       };
       try {
         const interaction = await createInteraction(prompt, {
           onEvent: (frame) => {
-            captureId(frame as { interaction?: { id?: string }; interaction_id?: string });
+            captureId(
+              frame as {
+                interaction?: { id?: string };
+                interaction_id?: string;
+              },
+            );
             const text = frameDeltaText(frame);
             if (!text) return;
             liveBuf += text;
