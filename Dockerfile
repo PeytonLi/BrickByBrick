@@ -45,8 +45,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 # LiveKit's NAPI native binding is loaded via a dynamic, platform-specific
 # require() that Next's standalone tracer cannot follow. Copy the resolved
-# @livekit packages (loader + glibc binary) explicitly so live narration audio
-# works in production. (Demo mode noops the bridge and doesn't need these.)
+# @livekit packages (JS wrapper + glibc binary) explicitly so live narration
+# and two-way voice audio work in production.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/@livekit+rtc-node@0.13.29 ./node_modules/.pnpm/@livekit+rtc-node@0.13.29
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/@livekit+rtc-ffi-bindings-linux-x64-gnu@0.12.60 ./node_modules/.pnpm/@livekit+rtc-ffi-bindings-linux-x64-gnu@0.12.60
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/@livekit+rtc-ffi-bindings@0.12.60 ./node_modules/.pnpm/@livekit+rtc-ffi-bindings@0.12.60
 
