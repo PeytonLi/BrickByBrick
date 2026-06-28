@@ -26,9 +26,12 @@ const config: NextConfig = {
     "@brickbybrick/inference",
     "@brickbybrick/trainer",
   ],
-  // @livekit/rtc-node ships platform-specific NAPI binaries — webpack can't
-  // bundle them. Externalize so they're loaded natively at runtime.
-  serverExternalPackages: ["@livekit/rtc-node"],
+  // Native / dynamically-required packages webpack must NOT bundle:
+  //  - @livekit/rtc-node ships platform-specific NAPI binaries.
+  //  - @google/genai's Live API uses `ws`, whose native `bufferutil` frame
+  //    masking breaks when bundled ("b.mask is not a function" at runtime).
+  // Externalize so they load natively from node_modules at runtime.
+  serverExternalPackages: ["@livekit/rtc-node", "@google/genai", "ws"],
 };
 
 export default config;
