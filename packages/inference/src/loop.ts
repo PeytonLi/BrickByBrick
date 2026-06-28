@@ -308,6 +308,12 @@ export function buildChallengerPrompt(config: GenerationConfig): string {
   return parts.join("\n\n");
 }
 
+export function buildAuditPrompt(task: VisualTask, code: string): string {
+  return `${ANTIGRAVITY_AUDIT_SYSTEM}\n\nTask:\n${task.prompt}\n\nAcceptance criteria:\n${task.criteria
+    .map((c) => `- ${c.id}: ${c.description}`)
+    .join("\n")}\n\nCode to audit:\n${code}`;
+}
+
 function safeJson<T>(text: string): T | null {
   const cleaned = text
     .replace(/```json\n?/g, "")
@@ -324,6 +330,10 @@ function safeJson<T>(text: string): T | null {
       return null;
     }
   }
+}
+
+export function safeJsonExported(text: string): unknown {
+  return safeJson<unknown>(text);
 }
 
 /**
