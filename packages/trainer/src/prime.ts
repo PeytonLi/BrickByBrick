@@ -60,6 +60,8 @@ export interface GemmaLoraTrainingOpts {
   gpuType?: string
   keepPod?: boolean
   remoteRoot?: string
+  /** Hugging Face Hub repo to push the trained adapter to, e.g. "user/gemma-bbb-lora". */
+  hubRepo?: string
 }
 
 export interface GemmaLoraTrainingCallbacks {
@@ -72,6 +74,8 @@ export interface GemmaLoraTrainingResult {
   podId: string
   adapterPath: string
   runName: string
+  /** Set when the adapter was pushed to the Hugging Face Hub. */
+  hubRepo?: string
 }
 
 function repoRoot(): string {
@@ -372,6 +376,24 @@ function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Resolve the Hugging Face Hub repo to push the trained adapter to, from the
+ * explicit option then BBB_HF_HUB_REPO in `env`. Kept pure (no disk reads) so it
+ * stays unit-testable; the caller overlays .env.local onto `env`, preserving the
+ * explicit option > process env > .env.local precedence. Blank/unset means no
+ * push (training still completes; the adapter just isn't persisted).
+ */
+function resolveHubRepo(
+  opts: { hubRepo?: string },
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  for (const candidate of [opts.hubRepo, env.BBB_HF_HUB_REPO]) {
+    const trimmed = candidate?.trim()
+    if (trimmed) return trimmed
+  }
+  return undefined
+}
+
 export async function runGemmaLoraTraining(
   opts: GemmaLoraTrainingOpts,
   callbacks: GemmaLoraTrainingCallbacks = {},
@@ -384,6 +406,7 @@ export async function runGemmaLoraTraining(
   const runName = opts.runName ?? `bbb-gemma-${Date.now()}`
   const modelId = opts.modelId ?? process.env.BBB_GEMMA_MODEL ?? DEFAULT_GEMMA_MODEL
   const maxSteps = opts.maxSteps ?? Number(process.env.BBB_TRAINING_MAX_STEPS ?? 20)
+  const hubRepo = resolveHubRepo(opts, { ...loadDotEnvLocal(), ...process.env })
   const localDir = mkdtempSync(join(tmpdir(), 'bbb-gemma-'))
   let podId = ''
 
@@ -414,14 +437,18 @@ export async function runGemmaLoraTraining(
       hfToken,
       modelId,
       maxSteps,
+      hubRepo,
       onMetric: callbacks.onMetric,
       onLog: callbacks.onLog,
     })
 
     const adapterPath = `${remoteDir}/adapter`
     callbacks.onStatus?.('saving', adapterPath)
+    // The remote script raises (→ non-zero exit → streamRemoteTraining rejects)
+    // if the push fails, so reaching here means the adapter is on the Hub.
+    if (hubRepo) callbacks.onStatus?.('pushed', hubRepo)
     callbacks.onStatus?.('complete', adapterPath)
-    return { podId, adapterPath, runName }
+    return { podId, adapterPath, runName, hubRepo }
   } finally {
     rmSync(localDir, { recursive: true, force: true })
     if (podId && !opts.keepPod) {
@@ -443,6 +470,7 @@ async function streamRemoteTraining(
     hfToken: string
     modelId: string
     maxSteps: number
+    hubRepo?: string
     onMetric?: (point: LossPoint) => void
     onLog?: (line: string) => void
   },
@@ -490,7 +518,9 @@ function buildRemoteTrainingCommand(opts: {
   hfToken: string
   modelId: string
   maxSteps: number
+  hubRepo?: string
 }): string {
+  const pushFlag = opts.hubRepo ? ` --push-to-hub ${shellSingleQuote(opts.hubRepo)}` : ''
   return [
     'set -euo pipefail',
     'export PIP_ROOT_USER_ACTION=ignore',
@@ -505,8 +535,8 @@ function buildRemoteTrainingCommand(opts: {
     ].join('\n'),
     '.py/bin/python -m pip install --upgrade pip',
     '.py/bin/python -m pip install --upgrade torch --index-url https://download.pytorch.org/whl/cu124',
-    '.py/bin/python -m pip install --upgrade "transformers>=4.49.0" "datasets>=3.0.0" "accelerate>=1.2.0" "peft>=0.14.0" "trl>=0.25.0" "bitsandbytes>=0.45.0" "pillow>=11.0.0"',
-    `HF_TOKEN=${shellSingleQuote(opts.hfToken)} .py/bin/python train_gemma_lora.py --dataset dataset.jsonl --output adapter --model ${shellSingleQuote(opts.modelId)} --max-steps ${opts.maxSteps}`,
+    '.py/bin/python -m pip install --upgrade "transformers>=4.49.0" "datasets>=3.0.0" "accelerate>=1.2.0" "peft>=0.14.0" "trl>=0.25.0" "bitsandbytes>=0.45.0" "pillow>=11.0.0" "huggingface_hub>=0.27.0"',
+    `HF_TOKEN=${shellSingleQuote(opts.hfToken)} .py/bin/python train_gemma_lora.py --dataset dataset.jsonl --output adapter --model ${shellSingleQuote(opts.modelId)} --max-steps ${opts.maxSteps}${pushFlag}`,
   ].join(' && ')
 }
 
@@ -517,6 +547,7 @@ export const internalPrimeTestUtils = {
   trainingPairToChatJsonl,
   numberFromStatus,
   buildRemoteTrainingCommand,
+  resolveHubRepo,
 }
 
 import type { PrimeTrainingDeps } from './providers/prime'

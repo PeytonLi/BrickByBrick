@@ -22,6 +22,19 @@ vi.mock('@/lib/server/narration-bridge', () => ({
   })),
 }))
 
+// Keep the test hermetic: never touch a real MongoDB (the route calls connectDB
+// at stream start). Without this, a populated MONGODB_ATLAS_URI in .env.local
+// makes connectDB attempt a real connection and hang past the test timeout.
+vi.mock('@brickbybrick/db', () => ({
+  connectDB: vi.fn(() => Promise.resolve()),
+  RunModel: {
+    create: vi.fn(() => Promise.resolve()),
+    updateOne: vi.fn(() => Promise.resolve()),
+  },
+  PairModel: { create: vi.fn(() => Promise.resolve()) },
+  EventModel: { insertBatch: vi.fn(() => Promise.resolve()) },
+}))
+
 vi.mock('@brickbybrick/inference', () => ({
   runVisualLoop: async (
     _config: GenerationConfig,

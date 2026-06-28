@@ -177,3 +177,15 @@ The Gemini primary path is unchanged; DO only activates on error.
 the dataset + TOML config, runs a LoRA fine-tune (`peft`/`transformers`) emitting
 JSON-lines loss to a log, streams it back over SSH, then terminates the droplet.
 Prime remains the default; both expose the same logical interface.
+
+## §12. Persisting the trained adapter (Hugging Face Hub)
+
+GPU pods/droplets are ephemeral — their disks are wiped on teardown — so the
+trained LoRA **adapter** (the actual fine-tune output) must be pushed off-box or
+it's lost. When `BBB_HF_HUB_REPO` (or the `hubRepo` training option) is set, the
+remote training script pushes the saved adapter to that Hugging Face Hub repo
+(private) right after `trainer.save_model`. The repo is validated up front with
+`create_repo` **before** training starts, so a bad token or missing permission
+fails in seconds rather than after an expensive run. On success the loop emits a
+narration linking `https://huggingface.co/<repo>`. Leave `BBB_HF_HUB_REPO` blank
+to skip the push (training still completes; the adapter just isn't persisted).

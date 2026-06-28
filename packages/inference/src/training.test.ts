@@ -62,6 +62,41 @@ describe('runPrimeTraining', () => {
     ).toBe(true)
   })
 
+  it('surfaces the Hugging Face Hub adapter as a narration when pushed', async () => {
+    const deps: GemmaTrainingDeps = {
+      runGemmaLoraTraining: vi.fn(async (_opts, callbacks) => {
+        callbacks.onStatus?.('saving', '/workspace/adapter')
+        callbacks.onStatus?.('pushed', 'peli/gemma-bbb-lora')
+        return {
+          podId: 'pod-1',
+          adapterPath: '/workspace/adapter',
+          runName: 'bbb-test',
+          hubRepo: 'peli/gemma-bbb-lora',
+        }
+      }),
+    }
+    const { events, emit } = collect()
+
+    await runPrimeTraining([pair], emit, deps)
+
+    // 'pushed' is not a valid TrainingStatus — it must not leak as a training_event.
+    // (cast to string: the type system already forbids it; this guards the runtime
+    // cast in training.ts that could otherwise let it through.)
+    expect(
+      events.some(
+        (event) => event.type === 'training_event' && (event.status as string) === 'pushed',
+      ),
+    ).toBe(false)
+    // It surfaces as a narration linking the Hub repo.
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'narration' &&
+          event.text.includes('huggingface.co/peli/gemma-bbb-lora'),
+      ),
+    ).toBe(true)
+  })
+
   it('emits failed when exact Gemma training fails', async () => {
     const deps: GemmaTrainingDeps = {
       runGemmaLoraTraining: vi.fn(async () => {

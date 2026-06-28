@@ -9,7 +9,7 @@ export interface GemmaTrainingDeps {
       onMetric?: (point: LossPoint) => void
       onLog?: (line: string) => void
     },
-  ) => Promise<{ podId: string; adapterPath: string; runName: string }>
+  ) => Promise<{ podId: string; adapterPath: string; runName: string; hubRepo?: string }>
 }
 
 const realDeps: GemmaTrainingDeps = {
@@ -42,6 +42,14 @@ export async function runPrimeTraining(
       { pairs, runName },
       {
         onStatus: (status, detail) => {
+          // 'pushed' is a Hub-save signal, not a TrainingStatus — surface it as
+          // a narration with the adapter's Hub URL instead of a training_event.
+          if (status === 'pushed') {
+            if (detail) {
+              emit({ type: 'narration', text: `Adapter pushed to Hugging Face Hub: https://huggingface.co/${detail}` })
+            }
+            return
+          }
           const eventStatus = status as Extract<AgentEvent, { type: 'training_event' }>['status']
           emit(trainingEvent({ status: eventStatus, instance: detail }))
         },

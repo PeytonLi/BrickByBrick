@@ -241,3 +241,77 @@ describe('Gemma remote trainer script', () => {
     )
   })
 })
+
+describe('resolveHubRepo', () => {
+  beforeEach(() => {
+    delete process.env.BBB_HF_HUB_REPO
+  })
+
+  it('uses the explicit hubRepo option when provided', () => {
+    expect(internalPrimeTestUtils.resolveHubRepo({ hubRepo: 'peli/explicit' })).toBe('peli/explicit')
+  })
+
+  it('falls back to the BBB_HF_HUB_REPO env var', () => {
+    process.env.BBB_HF_HUB_REPO = 'peli/from-env'
+    expect(internalPrimeTestUtils.resolveHubRepo({})).toBe('peli/from-env')
+  })
+
+  it('prefers the explicit option over the env var', () => {
+    process.env.BBB_HF_HUB_REPO = 'peli/from-env'
+    expect(internalPrimeTestUtils.resolveHubRepo({ hubRepo: 'peli/explicit' })).toBe('peli/explicit')
+  })
+
+  it('returns undefined when no repo is configured (push disabled)', () => {
+    expect(internalPrimeTestUtils.resolveHubRepo({})).toBeUndefined()
+  })
+
+  it('ignores blank/whitespace repo values', () => {
+    expect(internalPrimeTestUtils.resolveHubRepo({ hubRepo: '   ' })).toBeUndefined()
+  })
+})
+
+describe('Gemma remote bootstrap — Hugging Face Hub push', () => {
+  it('appends a shell-quoted --push-to-hub flag when a repo is given', () => {
+    const command = internalPrimeTestUtils.buildRemoteTrainingCommand({
+      remoteDir: '/workspace/bbb-run',
+      hfToken: 'hf_test',
+      modelId: 'google/gemma-4-26B-A4B-it',
+      maxSteps: 5,
+      hubRepo: 'peli/gemma-bbb-lora',
+    })
+
+    expect(command).toContain("--push-to-hub 'peli/gemma-bbb-lora'")
+  })
+
+  it('omits --push-to-hub when no repo is configured', () => {
+    const command = internalPrimeTestUtils.buildRemoteTrainingCommand({
+      remoteDir: '/workspace/bbb-run',
+      hfToken: 'hf_test',
+      modelId: 'google/gemma-4-26B-A4B-it',
+      maxSteps: 5,
+    })
+
+    expect(command).not.toContain('--push-to-hub')
+  })
+})
+
+describe('Gemma remote trainer script — Hugging Face Hub push', () => {
+  it('accepts an optional --push-to-hub argument', () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('--push-to-hub')
+  })
+
+  it('validates the repo up front with create_repo (fail-fast before training)', () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('create_repo')
+    // create_repo must run before trainer.train() so bad auth fails in seconds,
+    // not after an expensive run.
+    const createIdx = GEMMA_LORA_TRAINER_PY.indexOf('create_repo')
+    const trainIdx = GEMMA_LORA_TRAINER_PY.indexOf('trainer.train()')
+    expect(createIdx).toBeGreaterThan(-1)
+    expect(createIdx).toBeLessThan(trainIdx)
+  })
+
+  it('pushes the saved adapter to the hub and reports it', () => {
+    expect(GEMMA_LORA_TRAINER_PY).toContain('push_to_hub')
+    expect(GEMMA_LORA_TRAINER_PY).toContain('"status": "pushed"')
+  })
+})

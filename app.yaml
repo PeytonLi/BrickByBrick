@@ -37,6 +37,12 @@ services:
       - key: NEXT_PUBLIC_TRAINING_BUCKET_URI
         scope: RUN_TIME
         type: SECRET
+      - key: HF_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      - key: BBB_HF_HUB_REPO
+        scope: RUN_TIME
+        type: SECRET
       - key: STRONG_MODEL
         scope: RUN_TIME
         value: gemini-3.1-pro-preview

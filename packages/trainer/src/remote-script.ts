@@ -6,6 +6,7 @@ import sys
 
 import torch
 from datasets import load_dataset
+from huggingface_hub import create_repo
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainerCallback
 from trl import SFTConfig, SFTTrainer
@@ -40,6 +41,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
     parser.add_argument("--max-seq-length", type=int, default=4096)
+    parser.add_argument("--push-to-hub", default=None)
     return parser.parse_args()
 
 
@@ -48,6 +50,13 @@ def main():
     token = os.environ.get("HF_TOKEN")
     if not token:
         raise RuntimeError("HF_TOKEN is required")
+
+    # Fail fast: validate the Hub repo/token BEFORE the expensive training run, so
+    # a bad token or missing permission surfaces in seconds instead of after an
+    # hour of training when the adapter would otherwise be lost on pod teardown.
+    if args.push_to_hub:
+        create_repo(args.push_to_hub, token=token, private=True, exist_ok=True, repo_type="model")
+        print(json.dumps({"type": "status", "status": "hub_ready", "repo": args.push_to_hub}), flush=True)
 
     print(json.dumps({"type": "status", "status": "loading_dataset"}), flush=True)
     dataset = load_dataset("json", data_files=args.dataset, split="train")
@@ -110,6 +119,23 @@ def main():
     trainer.train()
     trainer.save_model(args.output)
     tokenizer.save_pretrained(args.output)
+
+    if args.push_to_hub:
+        print(json.dumps({"type": "status", "status": "pushing", "repo": args.push_to_hub}), flush=True)
+        trainer.model.push_to_hub(args.push_to_hub, token=token, private=True)
+        tokenizer.push_to_hub(args.push_to_hub, token=token, private=True)
+        print(
+            json.dumps(
+                {
+                    "type": "status",
+                    "status": "pushed",
+                    "repo": args.push_to_hub,
+                    "url": "https://huggingface.co/" + args.push_to_hub,
+                }
+            ),
+            flush=True,
+        )
+
     print(json.dumps({"type": "status", "status": "complete", "adapter": args.output}), flush=True)
 
 
