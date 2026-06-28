@@ -969,21 +969,31 @@ export function ControlCenter() {
               training pipeline progress.
             </p>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={streamTraining}
-            disabled={
-              trainingState === "streaming" || trainingRunId.trim().length === 0
-            }
-          >
-            {trainingState === "streaming" ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Radio className="size-4" aria-hidden="true" />
-            )}
-            Stream metrics
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              className="h-8 w-56 rounded-md border border-white/10 bg-black px-2.5 text-xs text-white font-mono outline-none focus:border-emerald-300 placeholder:text-zinc-600"
+              placeholder="Paste Prime pod ID…"
+              value={manualRunId}
+              onChange={(e) => setManualRunId(e.target.value)}
+              aria-label="Training run ID"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={streamTraining}
+              disabled={
+                trainingState === "streaming" ||
+                trainingRunId.trim().length === 0
+              }
+            >
+              {trainingState === "streaming" ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Radio className="size-4" aria-hidden="true" />
+              )}
+              Stream metrics
+            </Button>
+          </div>
         </div>
 
         {/* Top metrics */}

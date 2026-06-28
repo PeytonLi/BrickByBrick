@@ -458,6 +458,16 @@ export function defaultDeps(opts?: { solverSet?: SolverSet }): VisualLoopDeps {
       return safeJson<Partial<GenerationConfig>>(raw) ?? {};
     },
     newId: () => randomUUID(),
-    train: (pairs, emit) => runPrimeTraining(pairs, emit),
+    train: (pairs, emit) => {
+      try {
+        return runPrimeTraining(pairs, emit);
+      } catch (error) {
+        emit({
+          type: "narration",
+          text: `Training skipped: ${error instanceof Error ? error.message : String(error)}. Run locally with: BBB_ALLOW_PAID_REHEARSAL=1 pnpm tsx scripts/demo/full-train.ts`,
+        });
+        return Promise.resolve();
+      }
+    },
   };
 }
