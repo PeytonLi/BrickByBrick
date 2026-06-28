@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, memo } from "react";
 import Image from "next/image";
 import { useMemo } from "react";
 import {
@@ -125,6 +125,8 @@ function AgentAudioVisualizer({
     </div>
   );
 }
+
+const MemoAgentAudioVisualizer = memo(AgentAudioVisualizer);
 
 // ---------------------------------------------------------------------------
 // Narration log — plain-language what's-happening feed
@@ -782,14 +784,14 @@ export function ControlCenter() {
                     className="contents"
                   >
                     <RoomAudioRenderer />
-                    <LiveKitNarrationVisualizer />
-                    <MicrophoneControl
+                    <MemoLiveKitNarrationVisualizer />
+                    <MemoMicrophoneControl
                       muted={micMuted}
                       onToggle={() => setMicMuted((m) => !m)}
                     />
                   </LiveKitRoom>
                 ) : (
-                  <AgentAudioVisualizer />
+                  <MemoAgentAudioVisualizer />
                 )}
               </div>
             </div>
@@ -1303,9 +1305,14 @@ function LiveKitNarrationVisualizer() {
   });
 
   return (
-    <AgentAudioVisualizer connected={Boolean(narratorTrack)} levels={levels} />
+    <MemoAgentAudioVisualizer
+      connected={Boolean(narratorTrack)}
+      levels={levels}
+    />
   );
 }
+
+const MemoLiveKitNarrationVisualizer = memo(LiveKitNarrationVisualizer);
 
 // ---------------------------------------------------------------------------
 // Microphone toggle — must live inside <LiveKitRoom> for useLocalParticipant
@@ -1329,3 +1336,5 @@ function MicrophoneControl({
 
   return null; // UI is rendered outside the room context
 }
+
+const MemoMicrophoneControl = memo(MicrophoneControl);
