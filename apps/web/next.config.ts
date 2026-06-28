@@ -1,19 +1,34 @@
-import type { NextConfig } from 'next'
-import path from 'path'
+import type { NextConfig } from "next";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
-const nextConfig: NextConfig = {
-  output: 'standalone',
-  transpilePackages: [
-    '@brickbybrick/core',
-    '@brickbybrick/db',
-    '@brickbybrick/inference',
-    '@brickbybrick/trainer',
-  ],
-  // Keep mongoose/mongodb out of the bundle — require them at runtime. This
-  // avoids bundling the huge driver (and its optional 'aws4' dep warning) into
-  // the API routes, which also speeds up dev cold-compile of the SSE routes.
-  serverExternalPackages: ['@livekit/rtc-node', 'mongoose', 'mongodb'],
-  outputFileTracingRoot: path.join(__dirname, '../../'),
+// Next.js only loads .env.local from its own directory (apps/web/),
+// but the monorepo keeps it at the repo root. Load it manually.
+function loadRootEnv() {
+  const rootEnvPath = resolve(__dirname, "..", "..", ".env.local");
+  try {
+    const content = readFileSync(rootEnvPath, "utf-8");
+    for (const line of content.split("\n")) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.+)/);
+      if (m && !process.env[m[1]]) {
+        process.env[m[1]] = m[2].trim();
+      }
+    }
+  } catch {}
 }
 
-export default nextConfig
+loadRootEnv();
+
+const config: NextConfig = {
+  output: "standalone",
+  transpilePackages: [
+    "@brickbybrick/core",
+    "@brickbybrick/inference",
+    "@brickbybrick/trainer",
+  ],
+  // @livekit/rtc-node ships platform-specific NAPI binaries — webpack can't
+  // bundle them. Externalize so they're loaded natively at runtime.
+  serverExternalPackages: ["@livekit/rtc-node"],
+};
+
+export default config;
