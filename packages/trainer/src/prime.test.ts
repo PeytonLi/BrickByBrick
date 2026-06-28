@@ -346,3 +346,19 @@ describe("Gemma remote trainer script — Hugging Face Hub push", () => {
     expect(GEMMA_LORA_TRAINER_PY).toContain('"status": "pushed"');
   });
 });
+
+describe("buildServeCommand (Feature C)", () => {
+  it("installs vllm, launches base+lora, and schedules a TTL pkill", () => {
+    const cmd = internalPrimeTestUtils.buildServeCommand({
+      remoteDir: "/home/ubuntu/run1",
+      adapterPath: "/home/ubuntu/run1/adapter",
+      baseModel: "google/gemma-4-26B-A4B-it",
+      port: 8000,
+      ttlMs: 1_800_000,
+    });
+    expect(cmd).toMatch(/pip install .*vllm/);
+    expect(cmd).toMatch(/vllm\.entrypoints\.openai\.api_server/);
+    expect(cmd).toMatch(/--lora-modules tuned=/);
+    expect(cmd).toMatch(/sleep 1800; pkill -f vllm/);
+  });
+});

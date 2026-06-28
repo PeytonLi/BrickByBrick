@@ -613,6 +613,98 @@ function buildRemoteTrainingCommand(opts: {
   ].join(" && ");
 }
 
+export interface ServeAdapterOpts {
+  remoteDir: string;
+  adapterPath: string;
+  baseModel?: string;
+  port?: number;
+  ttlMs?: number;
+}
+export interface ServeHandle {
+  serveUrl: string;
+  podId: string;
+  baseModel: string;
+  expiresAt: string;
+}
+
+function buildServeCommand(opts: {
+  remoteDir: string;
+  adapterPath: string;
+  baseModel: string;
+  port: number;
+  ttlMs: number;
+}): string {
+  const py = `${opts.remoteDir}/.py/bin/python`;
+  const ttlSec = Math.round(opts.ttlMs / 1000);
+  return [
+    "set -euo pipefail",
+    `${py} -m pip install --quiet "vllm>=0.6.0"`,
+    `nohup ${py} -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port ${opts.port} ` +
+      `--model ${shellSingleQuote(opts.baseModel)} --enable-lora ` +
+      `--lora-modules tuned=${shellSingleQuote(opts.adapterPath)} ` +
+      `> ${opts.remoteDir}/vllm.log 2>&1 &`,
+    // Self-destruct after TTL so a forgotten serve window can't leak GPU spend.
+    `( sleep ${ttlSec}; pkill -f vllm.entrypoints.openai.api_server ) >/dev/null 2>&1 &`,
+    "echo serve-launched",
+  ].join(" && ");
+}
+
+async function waitForServe(
+  serveUrl: string,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 10 * 60_000;
+  const intervalMs = opts.intervalMs ?? 10_000;
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const res = await fetch(`${serveUrl}/models`);
+      if (res.ok) return;
+    } catch {
+      /* server not up yet */
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(`vLLM did not become ready at ${serveUrl}`);
+}
+
+/**
+ * Start a vLLM OpenAI server on an already-trained pod (base + LoRA adapter) and
+ * return its public URL. INFRA NOTE: assumes the pod's port is reachable at its
+ * public IP. If Prime pods don't expose arbitrary ports, switch serveUrl to a
+ * persistent `ssh -L` local forward from the Next.js host (same SshTarget).
+ */
+export async function serveAdapter(
+  podId: string,
+  target: SshTarget,
+  opts: ServeAdapterOpts,
+): Promise<ServeHandle> {
+  const baseModel =
+    opts.baseModel ?? process.env.BBB_GEMMA_MODEL ?? DEFAULT_GEMMA_MODEL;
+  const port = opts.port ?? 8000;
+  const ttlMs = opts.ttlMs ?? 30 * 60_000;
+  runRemote(
+    target,
+    buildServeCommand({
+      remoteDir: opts.remoteDir,
+      adapterPath: opts.adapterPath,
+      baseModel,
+      port,
+      ttlMs,
+    }),
+  );
+  const ip = getPodStatus(podId).ip;
+  if (!ip) throw new Error(`pod ${podId} has no public IP for serving`);
+  const serveUrl = `http://${ip}:${port}/v1`;
+  await waitForServe(serveUrl);
+  return {
+    serveUrl,
+    podId,
+    baseModel,
+    expiresAt: new Date(Date.now() + ttlMs).toISOString(),
+  };
+}
+
 export const internalPrimeTestUtils = {
   parseCreatedPodId,
   parseRunId,
@@ -621,6 +713,7 @@ export const internalPrimeTestUtils = {
   numberFromStatus,
   buildRemoteTrainingCommand,
   resolveHubRepo,
+  buildServeCommand,
 };
 
 import type { PrimeTrainingDeps } from "./providers/prime";
