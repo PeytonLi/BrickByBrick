@@ -4,9 +4,9 @@ Read this first if you're an agent picking up cold. It records **what was decide
 
 ## Where we are
 
-- **Phase:** **WP-0 complete, WP-1 in progress, 2026-06-27.** `@brickbybrick/core` contracts frozen; all packages have passing tests (core 8, db 13, inference 78, trainer 40, web 17). HF-Hub LoRA adapter push feature landed. Seed dataset (~60 pairs, 16 UI mechanisms) generated and schema-validated.
-- **Packages now:** `core`, `inference`, `trainer` (the `agentbox` package was **removed** — Antigravity folds into `inference`). `apps/web` pages are still one-line placeholders.
-- **Next step:** put real keys in `.env.local`, run the **go/no-go spike** (`scripts/spike/`), confirm all five checks + commit the two fixtures — **then** create the three worktrees and spawn A/B/C.
+- **Phase:** **WP-0–3 complete, WP-4 in progress, 2026-06-28.** `@brickbybrick/core` contracts frozen; all packages have passing tests (core 8, db 13, inference 91, trainer 40, web 21). HF-Hub LoRA adapter push landed. Seed dataset (~60 pairs, 16 UI mechanisms) committed and schema-validated. Loop hardening (sandbox teardown, live cost, sentinel validation) landed. Closed-loop UI (one-click loop→training→metrics) landed.
+- **Packages now:** `core`, `inference`, `trainer`, `db`, `apps/web` (the `agentbox` package was **removed** — Antigravity folds into `inference`). Dashboard has three fully-wired sections (Live Media Room, Adversarial Matrix, Compute Console) with SSE-streamed screenshots and training metrics.
+- **Next step:** live rehearsal — run `pnpm demo:preflight` then `BBB_ALLOW_PAID_REHEARSAL=1 pnpm demo:rehearsal` to validate the full loop end-to-end with real Antigravity screenshots and real Prime H100 training. **Gated by user consent (costs real money).**
 
 ## The pivot (most important context)
 

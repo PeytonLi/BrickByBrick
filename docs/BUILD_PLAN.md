@@ -7,10 +7,10 @@ How the work is split across agents. The model: **setup (sequential) → 3 fat f
 | Agent | Owns (disjoint dirs) | Brief |
 |---|---|---|
 | **Setup** | `packages/core`, root config, `.env*`, test infra | [`features/00-SETUP.md`](features/00-SETUP.md) ✅ done |
-| **A · Engine** | `packages/inference` (incl. Antigravity wrapper) | [`features/A-ENGINE.md`](features/A-ENGINE.md) |
-| **B · Infra** | `packages/trainer` | [`features/B-INFRA.md`](features/B-INFRA.md) |
-| **C · UI** | `apps/web` | [`features/C-UI.md`](features/C-UI.md) |
-| **D · Integration** | merge + e2e + runbook | [`features/D-INTEGRATION.md`](features/D-INTEGRATION.md) |
+| **A · Engine** | `packages/inference` (incl. Antigravity wrapper) | [`features/A-ENGINE.md`](features/A-ENGINE.md) ✅ done |
+| **B · Infra** | `packages/trainer` | [`features/B-INFRA.md`](features/B-INFRA.md) ✅ done |
+| **C · UI** | `apps/web` | [`features/C-UI.md`](features/C-UI.md) ✅ done |
+| **D · Integration** | merge + e2e + runbook | [`features/D-INTEGRATION.md`](features/D-INTEGRATION.md) 🔄 WP-4 in progress |
 
 ## Sequencing
 
