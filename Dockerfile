@@ -36,6 +36,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
+# @livekit/rtc-node's native (Rust) HTTP client uses the system CA trust store
+# for TLS to LiveKit Cloud (region discovery on connect). node:*-bookworm-slim
+# ships without CA certs, which fails as "failed to retrieve region info: error
+# sending request". (Node's own fetch is unaffected — it bundles its own roots.)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs
 
